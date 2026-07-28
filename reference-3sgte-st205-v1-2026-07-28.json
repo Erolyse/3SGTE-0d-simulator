@@ -1,0 +1,445 @@
+{
+  "schemaVersion": 2,
+  "kind": "3sgte-deterministic-model-reference",
+  "id": "3sgte-st205-f0217a2a-9b99-4944-bb09-1ccdebefc956",
+  "label": "Référence 28/07 10:45 · 295 N·m · 241.9 ch",
+  "createdAt": "2026-07-28T08:46:20.790Z",
+  "source": {
+    "reportGeneratedAt": "2026-07-28T08:46:20.789Z",
+    "referenceProtocol": {
+      "type": "deterministic-reference",
+      "completedAt": "2026-07-28T08:45:22.066Z",
+      "startedAt": "2026-07-28T08:44:06.031Z",
+      "physicsCallStepSeconds": 0.004,
+      "throttleClock": "temps simulé",
+      "sweepStopRpm": 6950,
+      "validationTargetRpm": 4000,
+      "repeatabilityCycleCount": 6,
+      "convergenceStepsDeg": [
+        1,
+        0.5,
+        0.25
+      ],
+      "multiPointCount": 7,
+      "multiPointStatus": "warning",
+      "multiPointProtocol": {
+        "stabilityWindowCycles": 4,
+        "capturedCyclesPerPoint": 4,
+        "minimumSettlingSeconds": 2.5,
+        "slowStabilityWindowSeconds": 1.5,
+        "maximumPointSeconds": 16,
+        "angularStepDeg": 0.5
+      },
+      "transientScenarioCount": 5,
+      "transientStatus": "warning",
+      "transientProtocol": {
+        "physicsCallStepSeconds": 0.004,
+        "angularStepDeg": 0.5,
+        "spoolPointId": "full-3500",
+        "liftOffPointId": "full-4000",
+        "wastegatePointId": "full-5500",
+        "revLimiterPointId": "full-6500",
+        "liftOffSeconds": 2,
+        "reapplicationSeconds": 3,
+        "revLimiterMaximumSeconds": 4
+      },
+      "sweepSimulatedDurationSeconds": 22.800000000000953
+    },
+    "cycleValidationStatus": "pass",
+    "multiPointValidationStatus": "warning",
+    "transientValidationStatus": "warning",
+    "creationMode": "action explicite de l'utilisateur"
+  },
+  "project": "3S-GTE 0D Engine Simulator",
+  "model": {
+    "boreM": 0.086,
+    "strokeM": 0.086,
+    "sweptVolumePerCylinderM3": 0.0004995572142179272,
+    "totalDisplacementM3": 0.001998228856871709,
+    "compressionRatio": 8.5,
+    "firingOrder": "1-3-4-2",
+    "turboShaftInertiaKgM2": 0.00012,
+    "intakeValveOpenDeg": 0,
+    "intakeValveCloseDeg": 245,
+    "exhaustValveOpenDeg": 500,
+    "exhaustValveCloseDeg": 720
+  },
+  "numericalMethod": {
+    "externalPhysicsStepSeconds": 0.0001,
+    "displayedCycleStepDeg": 0.5,
+    "telemetryRateHz": 30,
+    "cycleResolution": 1441,
+    "angularSolver": "pas temporel avec sous-pas angulaire adaptatif"
+  },
+  "modelFingerprint": "fnv1a-fefff872",
+  "tolerances": {
+    "global": {
+      "peakTorqueRelativePercent": {
+        "pass": 0.5,
+        "warning": 1.5
+      },
+      "peakPowerRelativePercent": {
+        "pass": 0.5,
+        "warning": 1.5
+      },
+      "peakRpmAbsolute": {
+        "pass": 100,
+        "warning": 250
+      }
+    },
+    "cycle": {
+      "torqueRelativePercent": {
+        "pass": 0.5,
+        "warning": 1.5
+      },
+      "imepRelativePercent": {
+        "pass": 0.5,
+        "warning": 1.5
+      },
+      "peakPressureRelativePercent": {
+        "pass": 1,
+        "warning": 3
+      },
+      "ca50AbsoluteDeg": {
+        "pass": 0.5,
+        "warning": 1.5
+      },
+      "repeatabilityUpperPercent": {
+        "pass": 0.05,
+        "warning": 0.2
+      },
+      "convergenceUpperPercent": {
+        "pass": 0.05,
+        "warning": 0.2
+      },
+      "pvClosureUpperPercent": {
+        "pass": 0.05,
+        "warning": 0.2
+      },
+      "massResidualUpperPercent": {
+        "pass": 0.00001,
+        "warning": 0.001
+      },
+      "energyResidualUpperPercent": {
+        "pass": 0.00025,
+        "warning": 0.002
+      }
+    },
+    "transient": {
+      "timeAbsoluteSeconds": {
+        "pass": 0.1,
+        "warning": 0.5
+      },
+      "boostAbsoluteBar": {
+        "pass": 0.02,
+        "warning": 0.05
+      },
+      "turboRpmAbsolute": {
+        "pass": 1500,
+        "warning": 5000
+      },
+      "percentageAbsolute": {
+        "pass": 1,
+        "warning": 5
+      }
+    },
+    "point": {
+      "rpmAbsolute": {
+        "pass": 50,
+        "warning": 150
+      },
+      "boostAbsoluteBar": {
+        "pass": 0.02,
+        "warning": 0.05
+      },
+      "torqueRelativePercent": {
+        "pass": 0.75,
+        "warning": 2
+      },
+      "imepRelativePercent": {
+        "pass": 0.75,
+        "warning": 2
+      },
+      "peakPressureRelativePercent": {
+        "pass": 1,
+        "warning": 3
+      },
+      "ca50AbsoluteDeg": {
+        "pass": 0.5,
+        "warning": 1.5
+      },
+      "repeatabilityUpperPercent": {
+        "pass": 0.05,
+        "warning": 0.2
+      },
+      "lowTorquePvClosureAbsoluteNm": {
+        "pass": 0.1,
+        "warning": 0.5
+      },
+      "pvClosureUpperPercent": {
+        "pass": 0.05,
+        "warning": 0.2
+      },
+      "massResidualUpperPercent": {
+        "pass": 0.00001,
+        "warning": 0.001
+      },
+      "energyResidualUpperPercent": {
+        "pass": 0.00025,
+        "warning": 0.002
+      }
+    }
+  },
+  "metrics": {
+    "global": {
+      "peakTorqueNm": 294.96972519139945,
+      "peakTorqueRpm": 4100,
+      "peakPowerHp": 241.9091041881871,
+      "peakPowerRpm": 6300,
+      "maximumMassResidualPercent": 0.000004263272754241905,
+      "maximumEnergyResidualPercent": 0.0012685162276139716
+    },
+    "cycle": {
+      "torqueFromPvNm": 319.4868280428252,
+      "indicatedTorqueNm": 320.90748725393826,
+      "netImepBar": 20.091742113450724,
+      "peakPressureBar": 89.31781630537299,
+      "ca50Deg": 372.7638622429094,
+      "ca50ModelDeg": 372.7204403934098,
+      "ca50TargetDeg": 369.5,
+      "pvClosureErrorPercent": 0.44270055001517045,
+      "pvClosureErrorNm": 1.4206592111130476,
+      "repeatabilityCvPercent": 0.009,
+      "convergenceChangePercent": 0.16934312796006348
+    },
+    "points": {
+      "idle-900": {
+        "id": "idle-900",
+        "label": "Ralenti",
+        "targetRpm": 900,
+        "throttle": 0,
+        "meanRpm": 894.696895835003,
+        "meanBoostBarGauge": 0,
+        "torqueFromPvNm": 29.998766923372806,
+        "indicatedTorqueNm": 30.245596082142285,
+        "netImepBar": 1.8865487896268767,
+        "peakPressureBar": 11.437434723241687,
+        "ca50Deg": 370.87750886004665,
+        "ca50ModelDeg": 370.8774705638548,
+        "ca50TargetDeg": 369.5,
+        "pvClosureErrorPercent": 0.8160829698946257,
+        "pvClosureErrorNm": 0.2468291587694793,
+        "repeatabilityCvPercent": 0.35155375339387407,
+        "maximumMassResidualPercent": 0.000001725247506014439,
+        "maximumEnergyResidualPercent": 7.033631099591479e-7,
+        "status": "warning"
+      },
+      "partial-2000": {
+        "id": "partial-2000",
+        "label": "Charge légère",
+        "targetRpm": 2000,
+        "throttle": 0.25,
+        "meanRpm": 1969.2567999013922,
+        "meanBoostBarGauge": 0,
+        "torqueFromPvNm": 196.5878598779791,
+        "indicatedTorqueNm": 197.59235958371775,
+        "netImepBar": 12.362927784847823,
+        "peakPressureBar": 53.45723186450387,
+        "ca50Deg": 370.87750886004665,
+        "ca50ModelDeg": 370.87747056385473,
+        "ca50TargetDeg": 369.5,
+        "pvClosureErrorPercent": 0.5083697101724506,
+        "pvClosureErrorNm": 1.0044997057386524,
+        "repeatabilityCvPercent": 0.4976415280159813,
+        "maximumMassResidualPercent": 0.0000013394853654778448,
+        "maximumEnergyResidualPercent": 2.7612468462672334e-7,
+        "status": "warning"
+      },
+      "medium-3000": {
+        "id": "medium-3000",
+        "label": "Charge intermédiaire",
+        "targetRpm": 3000,
+        "throttle": 0.5,
+        "meanRpm": 3010.7904101591057,
+        "meanBoostBarGauge": 0.6405610353081258,
+        "torqueFromPvNm": 325.37149151510096,
+        "indicatedTorqueNm": 327.41711661525756,
+        "netImepBar": 20.46181414938943,
+        "peakPressureBar": 85.35648258349661,
+        "ca50Deg": 374.2292892555676,
+        "ca50ModelDeg": 374.0725838019825,
+        "ca50TargetDeg": 369.5,
+        "pvClosureErrorPercent": 0.6247764690202129,
+        "pvClosureErrorNm": 2.045625100156599,
+        "repeatabilityCvPercent": 0.08642938880745384,
+        "maximumMassResidualPercent": 0.000009486769009248164,
+        "maximumEnergyResidualPercent": 0.0003438641909021908,
+        "status": "warning"
+      },
+      "full-3500": {
+        "id": "full-3500",
+        "label": "Pleine charge — 3 500 tr/min",
+        "targetRpm": 3500,
+        "throttle": 1,
+        "meanRpm": 3525.9637312032432,
+        "meanBoostBarGauge": 0.714082775983752,
+        "torqueFromPvNm": 327.2507653833584,
+        "indicatedTorqueNm": 328.8954307198635,
+        "netImepBar": 20.579997068393883,
+        "peakPressureBar": 87.30916290202975,
+        "ca50Deg": 373.94588189617474,
+        "ca50ModelDeg": 373.88702910142445,
+        "ca50TargetDeg": 369.5,
+        "pvClosureErrorPercent": 0.5000572166373318,
+        "pvClosureErrorNm": 1.6446653365051134,
+        "repeatabilityCvPercent": 0.11679432352453636,
+        "maximumMassResidualPercent": 0.000002457495780731732,
+        "maximumEnergyResidualPercent": 0.00021323963284427614,
+        "status": "pass"
+      },
+      "full-4000": {
+        "id": "full-4000",
+        "label": "Pleine charge — référence",
+        "targetRpm": 4000,
+        "throttle": 1,
+        "meanRpm": 4027.380357431702,
+        "meanBoostBarGauge": 0.7296562825284998,
+        "torqueFromPvNm": 319.2817751527577,
+        "indicatedTorqueNm": 321.4468294838723,
+        "netImepBar": 20.078846840703196,
+        "peakPressureBar": 88.95406285774224,
+        "ca50Deg": 372.98735396055633,
+        "ca50ModelDeg": 372.94124005344315,
+        "ca50TargetDeg": 369.5,
+        "pvClosureErrorPercent": 0.6735341999144663,
+        "pvClosureErrorNm": 2.165054331114618,
+        "repeatabilityCvPercent": 0.06315587589226336,
+        "maximumMassResidualPercent": 0.0000023337722075681944,
+        "maximumEnergyResidualPercent": 0.00028005511067117874,
+        "status": "pass"
+      },
+      "full-5500": {
+        "id": "full-5500",
+        "label": "Pleine charge — puissance",
+        "targetRpm": 5500,
+        "throttle": 1,
+        "meanRpm": 5489.369644356015,
+        "meanBoostBarGauge": 0.7843722763644839,
+        "torqueFromPvNm": 308.8802327204265,
+        "indicatedTorqueNm": 311.0202186093715,
+        "netImepBar": 19.424719378194787,
+        "peakPressureBar": 95.46849637549126,
+        "ca50Deg": 370.2627280505302,
+        "ca50ModelDeg": 370.2413288561939,
+        "ca50TargetDeg": 369.5,
+        "pvClosureErrorPercent": 0.688053625102993,
+        "pvClosureErrorNm": 2.1399858889450343,
+        "repeatabilityCvPercent": 0.06824387397076587,
+        "maximumMassResidualPercent": 0.0000019193617101786816,
+        "maximumEnergyResidualPercent": 0.0006094600269652909,
+        "status": "pass"
+      },
+      "full-6500": {
+        "id": "full-6500",
+        "label": "Pleine charge — haut régime",
+        "targetRpm": 6500,
+        "throttle": 1,
+        "meanRpm": 6466.226502476057,
+        "meanBoostBarGauge": 0.8182001806716303,
+        "torqueFromPvNm": 294.90053315560345,
+        "indicatedTorqueNm": 297.1245750754296,
+        "netImepBar": 18.54557039981408,
+        "peakPressureBar": 95.33197052492523,
+        "ca50Deg": 369.50003618071975,
+        "ca50ModelDeg": 369.50000000000006,
+        "ca50TargetDeg": 369.5,
+        "pvClosureErrorPercent": 0.7485216997825092,
+        "pvClosureErrorNm": 2.2240419198261634,
+        "repeatabilityCvPercent": 0.048647176465355914,
+        "maximumMassResidualPercent": 6.18043518601513e-7,
+        "maximumEnergyResidualPercent": 0.0009767374510287335,
+        "status": "pass"
+      }
+    },
+    "transients": {
+      "spool-3500": {
+        "id": "spool-3500",
+        "label": "Montée en charge et spool à 3 500 tr/min",
+        "status": "pass",
+        "metrics": {
+          "boostStartTimeSeconds": 4.933333333333347,
+          "boostTargetTimeSeconds": 7.63333333333336,
+          "boostRiseTimeSeconds": 2.7000000000000135,
+          "maximumBoostBar": 0.7147268366293245,
+          "finalBoostBar": 0.7142761929318953,
+          "maximumTurboRpm": 112838.58304857748,
+          "maximumMassResidualPercent": 0.000004075614769456051,
+          "maximumEnergyResidualPercent": 0.0008025148581937113
+        }
+      },
+      "wastegate-5500": {
+        "id": "wastegate-5500",
+        "label": "Ouverture causale et régulation de wastegate",
+        "status": "pass",
+        "metrics": {
+          "initialWastegatePosition": 0,
+          "initialBoostBar": 0,
+          "initiallyClosed": true,
+          "boostCrackTimeSeconds": 7.63333333333336,
+          "wastegateOpenTimeSeconds": 7.700000000000028,
+          "wastegateRawResponseTimeSeconds": 0.06666666666666732,
+          "wastegateResponseTimeSeconds": 0.06666666666666732,
+          "causalOrderValid": true,
+          "maximumWastegatePosition": 0.43791064883523007,
+          "maximumWastegateMassFlowKgS": 0.07404105165828705,
+          "maximumBoostBar": 0.7863965830086118,
+          "maximumTurboRpm": 121666.5541412773
+        }
+      },
+      "lift-off-4000": {
+        "id": "lift-off-4000",
+        "label": "Lever de pied sous boost",
+        "status": "warning",
+        "metrics": {
+          "boostBeforeLiftBar": 0.7621602003744149,
+          "turboRpmBeforeLift": 114774.35539389006,
+          "bypassOpeningTimeSeconds": 0.10000000000000003,
+          "boostReleaseTimeSeconds": 0.06666666666666668,
+          "fuelCutTimeSeconds": 0.03333333333333333,
+          "finalFuelConsumptionLh": 2.095012060812819e-12,
+          "finalTorqueNm": -28.880573543630625,
+          "finalTurboRpm": 72055.13169701525,
+          "turboSpeedReductionPercent": 37.22018176470537,
+          "maximumMassResidualPercent": 0.0000030525101552468954,
+          "maximumEnergyResidualPercent": 0.0032689372431191238
+        }
+      },
+      "reapplication-4000": {
+        "id": "reapplication-4000",
+        "label": "Reprise de charge",
+        "status": "pass",
+        "metrics": {
+          "bypassClosingTimeSeconds": 0.13333333333333325,
+          "boostRecoveryTimeSeconds": 1.1666666666666659,
+          "maximumBoostBar": 0.7387560726138943,
+          "maximumTurboRpm": 115704.8811824562
+        }
+      },
+      "rev-limiter": {
+        "id": "rev-limiter",
+        "label": "Intervention du rupteur",
+        "status": "warning",
+        "metrics": {
+          "activationTimeSeconds": 0.004,
+          "injectionCutTimeSeconds": 0.016,
+          "resumeTimeSeconds": 2.4400000000000017,
+          "maximumRpm": 7025,
+          "eventCountDelta": 1,
+          "finalRpm": 6799.740106670571,
+          "maximumMassResidualPercent": 0.0000012073371768935694,
+          "maximumEnergyResidualPercent": 0.002894482053917147
+        }
+      }
+    }
+  }
+}

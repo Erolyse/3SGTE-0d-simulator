@@ -1,0 +1,85 @@
+import Engine from '../assets/simulator/engine/Engine.js';
+import {STROKE,SWEPT_VOLUME,CLEARANCE_VOLUME,CYLINDER_OFFSETS,getPistonDisplacementFromTDC,getCylinderVolume,getTorqueArm} from '../assets/simulator/Geometry/Geometry.js';
+import {R_AIR,GAMMA_AIR,CV_AIR,CP_AIR,GAMMA_CYLINDER_GAS,CV_CYLINDER_GAS,CP_CYLINDER_GAS,calculateOneWayCompressibleMassFlow,calculateBidirectionalCompressibleMassFlow} from '../assets/simulator/Physics/CompressibleFlow.js';
+import {INTAKE_VALVE_OPEN_DEG,INTAKE_VALVE_CLOSE_DEG,isIntakeValveOpen,getIntakeValveLift,getIntakeValveFlowArea,getIntakeValveDischargeCoefficient} from '../assets/simulator/Valvetrain/IntakeValves.js';
+import {EXHAUST_VALVE_OPEN_DEG,EXHAUST_VALVE_CLOSE_DEG,isExhaustValveOpen,getExhaustValveLift,getExhaustValveFlowArea,getExhaustValveDischargeCoefficient} from '../assets/simulator/Valvetrain/ExhaustValves.js';
+import {getCombustionDurationDegForRpm,getIgnitionAdvanceForTargetCA50} from '../assets/simulator/Thermodynamics/Thermodynamics.js';
+import {calculateMechanicalLosses,updateOverrunFuelCut} from '../assets/simulator/Crankshaft/MechanicalLosses.js';
+import {calculateTurboExhaustBoundary} from '../assets/simulator/Turbo/Turbocharger.js';
+import {calculateCrankAngleSubstep,BASE_CRANK_ANGLE_STEP_DEG,MAX_INTERNAL_TIME_STEP} from '../assets/simulator/Numerics/CrankAngleIntegrator.js';
+import {interpolateMonotonicThresholdCrossing} from '../assets/simulator/Cycle/CycleRecorder.js';
+
+const rad=d=>d*Math.PI/180;
+const tests=[];
+const add=(name,fn)=>tests.push([name,fn]);
+const ok=(cond,msg='')=>{if(!cond)throw new Error(msg)};
+const near=(a,b,t)=>ok(Number.isFinite(a)&&Math.abs(a-b)<=t,`${a} != ${b} tol ${t}`);
+const scan=(a,b,s,f)=>{let mv=-Infinity,ma=a,min=Infinity;for(let d=a;d<=b+s*.25;d+=s){const v=f(rad(d)); if(v>mv){mv=v;ma=d}; min=Math.min(min,v)}return {mv,ma,min}};
+
+add('V TDC',()=>near(getCylinderVolume(0),CLEARANCE_VOLUME,1e-14));
+add('V BDC',()=>near(getCylinderVolume(Math.PI),CLEARANCE_VOLUME+SWEPT_VOLUME,1e-14));
+add('V periodic',()=>near(getCylinderVolume(0),getCylinderVolume(4*Math.PI),1e-14));
+add('stroke',()=>{near(getPistonDisplacementFromTDC(0),0,1e-14);near(getPistonDisplacementFromTDC(Math.PI),STROKE,1e-14)});
+add('torque arm dead',()=>ok(Math.max(Math.abs(getTorqueArm(0)),Math.abs(getTorqueArm(Math.PI)))<=1e-12));
+add('torque arm sign',()=>ok(getTorqueArm(Math.PI/2)>0&&getTorqueArm(3*Math.PI/2)<0));
+add('offsets',()=>ok(CYLINDER_OFFSETS.length===4&&new Set(CYLINDER_OFFSETS.map(x=>Math.round(x*180/Math.PI))).size===4));
+add('Cp-Cv',()=>near(CP_AIR-CV_AIR,R_AIR,1e-10));
+add('gamma air',()=>near(CP_AIR/CV_AIR,GAMMA_AIR,1e-12));
+add('gas props',()=>{near(CP_CYLINDER_GAS-CV_CYLINDER_GAS,R_AIR,1e-10);near(CP_CYLINDER_GAS/CV_CYLINDER_GAS,GAMMA_CYLINDER_GAS,1e-12)});
+const A=1e-4,cd=.8;
+add('equal pressure',()=>ok(calculateOneWayCompressibleMassFlow(101325,293,101325,A,cd)===0));
+add('closed area',()=>ok(calculateOneWayCompressibleMassFlow(150000,300,101325,0,cd)===0));
+add('forward flow',()=>ok(calculateOneWayCompressibleMassFlow(150000,300,101325,A,cd)>0));
+add('reverse flow',()=>{const f=calculateBidirectionalCompressibleMassFlow(150000,300,101325,300,A,cd);const r=calculateBidirectionalCompressibleMassFlow(101325,300,150000,300,A,cd);ok(f>0&&r<0);near(f,-r,1e-12)});
+add('area scaling',()=>{const f=calculateOneWayCompressibleMassFlow(150000,300,101325,A,cd);const f2=calculateOneWayCompressibleMassFlow(150000,300,101325,2*A,cd);near(f2/f,2,1e-12)});
+add('choked plateau',()=>{const f=calculateOneWayCompressibleMassFlow(200000,300,40000,A,cd);const f2=calculateOneWayCompressibleMassFlow(200000,300,20000,A,cd);near(f2/f,1,1e-12)});
+add('subsonic monotonic',()=>ok(calculateOneWayCompressibleMassFlow(120000,300,100000,A,cd)>calculateOneWayCompressibleMassFlow(120000,300,115000,A,cd)));
+add('intake open',()=>ok(!isIntakeValveOpen(rad(INTAKE_VALVE_CLOSE_DEG+20))&&isIntakeValveOpen(rad(100))));
+add('intake endpoints',()=>{near(getIntakeValveLift(rad(INTAKE_VALVE_OPEN_DEG)),0,1e-12);near(getIntakeValveLift(rad(INTAKE_VALVE_CLOSE_DEG)),0,1e-12)});
+add('intake max',()=>{const x=scan(INTAKE_VALVE_OPEN_DEG,INTAKE_VALVE_CLOSE_DEG,.25,getIntakeValveLift);ok(x.mv>0&&x.min>=-1e-14&&Math.abs(x.ma-110)<=.5,JSON.stringify(x))});
+add('intake area',()=>ok(getIntakeValveFlowArea(rad(300))===0&&getIntakeValveFlowArea(rad(110))>0));
+add('intake cd',()=>{const l=getIntakeValveDischargeCoefficient(1000,rad(110));const h=getIntakeValveDischargeCoefficient(6500,rad(110));ok(l>0&&h<1&&h>=l)});
+add('exhaust open',()=>ok(!isExhaustValveOpen(rad(EXHAUST_VALVE_OPEN_DEG-20))&&isExhaustValveOpen(rad(600))&&!isExhaustValveOpen(rad(EXHAUST_VALVE_CLOSE_DEG))));
+add('exhaust endpoints',()=>{near(getExhaustValveLift(rad(EXHAUST_VALVE_OPEN_DEG)),0,1e-12);near(getExhaustValveLift(rad(EXHAUST_VALVE_CLOSE_DEG)),0,1e-12)});
+add('exhaust max',()=>{const x=scan(EXHAUST_VALVE_OPEN_DEG,EXHAUST_VALVE_CLOSE_DEG,.25,getExhaustValveLift);ok(x.mv>0&&x.min>=-1e-14&&Math.abs(x.ma-610)<=.5,JSON.stringify(x))});
+add('exhaust area',()=>ok(getExhaustValveFlowArea(rad(480))===0&&getExhaustValveFlowArea(rad(610))>0));
+add('exhaust cd',()=>{const l=getExhaustValveDischargeCoefficient(1000);const h=getExhaustValveDischargeCoefficient(6500);ok(l>0&&h<1&&h>=l)});
+add('combustion low',()=>near(getCombustionDurationDegForRpm(1000),50,1e-12));
+add('combustion high',()=>near(getCombustionDurationDegForRpm(6500),44,1e-12));
+add('combustion monotonic',()=>ok(getCombustionDurationDegForRpm(3000)>getCombustionDurationDegForRpm(4500)&&getCombustionDurationDegForRpm(4500)>getCombustionDurationDegForRpm(6000)));
+add('CA50 command',()=>near(getIgnitionAdvanceForTargetCA50(4000,9.5)-getIgnitionAdvanceForTargetCA50(4000,10.5),1,1e-12));
+add('advance coherent',()=>ok(getIgnitionAdvanceForTargetCA50(3000,9.5)>getIgnitionAdvanceForTargetCA50(6000,9.5)));
+add('burned fraction crossing interpolation',()=>near(interpolateMonotonicThresholdCrossing(370,0.40,371,0.60,0.50),370.5,1e-12));
+add('integrator actual combustion end',()=>{
+    for(const rpm of [1000,4500,6500]){
+        const s=new Engine().state;
+        s.rpm=rpm;
+        s.ignitionTimingDeg=15;
+        const endDeg=360-15+getCombustionDurationDegForRpm(rpm);
+        s.crankAngle=rad(endDeg-0.1);
+        const x=calculateCrankAngleSubstep(s);
+        near(x.predictedAngleAdvanceDeg,0.1,1e-6);
+    }
+});
+const lossState=rpm=>{const s=new Engine().state;s.rpm=rpm;s.crankAngle=0;s.cylinderPressures.fill(5e6);s.currentCyclePeakCylinderPressure.fill(5e6);s.lastCyclePeakCylinderPressure.fill(5e6);s.lossModelPreviousCylinderAngles.fill(0);return s};
+add('loss finite',()=>{const x=calculateMechanicalLosses(lossState(3000));ok([x.totalFMEP,x.frictionTorque,x.accessoryTorque,x.totalMechanicalLossTorque].every(v=>Number.isFinite(v)&&v>=0))});
+add('loss closure',()=>{const x=calculateMechanicalLosses(lossState(3000));near(x.totalMechanicalLossTorque,x.frictionTorque+x.accessoryTorque,1e-12)});
+add('loss rpm',()=>ok(calculateMechanicalLosses(lossState(6000)).totalMechanicalLossTorque>calculateMechanicalLosses(lossState(1000)).totalMechanicalLossTorque));
+add('fuel cut on',()=>{const s={throttle:0,rpm:2000,fuelCutActive:false,engineBrakingActive:false};updateOverrunFuelCut(s);ok(s.fuelCutActive&&s.engineBrakingActive)});
+add('fuel cut throttle off',()=>{const s={throttle:.05,rpm:2500,fuelCutActive:true,engineBrakingActive:true};updateOverrunFuelCut(s);ok(!s.fuelCutActive&&!s.engineBrakingActive)});
+add('fuel cut rpm off',()=>{const s={throttle:0,rpm:1000,fuelCutActive:true,engineBrakingActive:true};updateOverrunFuelCut(s);ok(!s.fuelCutActive&&!s.engineBrakingActive)});
+const turbo=(rpm=0,wg=0)=>{const s=new Engine().state;s.turboShaftAngularSpeed=rpm*2*Math.PI/60;s.wastegatePosition=wg;s.turbineFlowUtilization.fill(0);s.turbineAerodynamicEfficiency.fill(0);return s};
+add('turbo no expansion',()=>{const x=calculateTurboExhaustBoundary(turbo(),0,101325,800);ok(x.requestedTurbineMassFlow===0&&x.availableGasPower===0)});
+add('turbo active',()=>{const x=calculateTurboExhaustBoundary(turbo(80000),0,200000,900);ok(x.requestedTurbineMassFlow>0&&x.availableGasPower>0&&x.turbineTorque>=0)});
+add('wg closed',()=>{const x=calculateTurboExhaustBoundary(turbo(80000,0),0,200000,900);ok(x.requestedWastegateMassFlow===0&&x.wastegateArea===0)});
+add('wg open',()=>{const x=calculateTurboExhaustBoundary(turbo(80000,1),0,200000,900);ok(x.requestedWastegateMassFlow>0&&x.wastegateArea>0)});
+add('turbo efficiency',()=>{const s=turbo(100000);const x=calculateTurboExhaustBoundary(s,0,200000,900);ok(s.turbineAerodynamicEfficiency[0]>=0&&s.turbineAerodynamicEfficiency[0]<=1&&x.turbineShaftPower<=x.availableGasPower+1e-9)});
+add('turbo speed torque',()=>{const slow=calculateTurboExhaustBoundary(turbo(0),0,200000,900);const fast=calculateTurboExhaustBoundary(turbo(220000),0,200000,900);ok(fast.turbineTorque<=slow.turbineTorque+1e-12)});
+add('integrator stop',()=>{const s=new Engine().state;s.rpm=0;near(calculateCrankAngleSubstep(s).dt,MAX_INTERNAL_TIME_STEP,1e-15)});
+add('integrator high rpm',()=>{const s=new Engine().state;s.rpm=6000;s.crankAngle=rad(100);s.ignitionTimingDeg=15;const x=calculateCrankAngleSubstep(s);ok(x.dt<=MAX_INTERNAL_TIME_STEP&&x.predictedAngleAdvanceDeg<=x.targetAngleStepDeg+1e-9&&x.targetAngleStepDeg<=BASE_CRANK_ANGLE_STEP_DEG)});
+add('state arrays',()=>{const s=new Engine().state;ok([s.pistonPositions,s.cylinderVolumes,s.cylinderPressures,s.cylinderTemperatures,s.intakeValveLift,s.exhaustValveLift].every(a=>(Array.isArray(a)||ArrayBuffer.isView(a))&&a.length===CYLINDER_OFFSETS.length))});
+
+let fail=0;
+for(const [name,fn] of tests){try{fn();console.log('PASS',name)}catch(e){fail++;console.error('FAIL',name,e.message)}}
+console.log(`RESULT ${tests.length-fail}/${tests.length} passed`);
+process.exitCode=fail?1:0;
