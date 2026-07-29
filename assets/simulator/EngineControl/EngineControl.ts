@@ -9,6 +9,10 @@
 import {
     getIgnitionAdvanceForTargetCA50
 } from "../Thermodynamics/Thermodynamics.js";
+import type {
+    EngineOperatingState,
+    EngineStateData
+} from "../engine/EngineStateTypes.js";
 
 // États de fonctionnement
 
@@ -18,7 +22,7 @@ export const ENGINE_OPERATING_STATES = Object.freeze({
     RUNNING: "running",
     STOPPING: "stopping",
     STALLED: "stalled"
-});
+} as const satisfies Record<string, EngineOperatingState>);
 
 // Ralenti
 
@@ -133,23 +137,23 @@ export const REV_LIMITER_RESUME_RPM = 6800;
 
 // Outils
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function firstOrderResponse(currentValue, targetValue, dt, timeConstant) {
+function firstOrderResponse(currentValue: number, targetValue: number, dt: number, timeConstant: number): number {
     const alpha = 1 - Math.exp(-Math.max(dt, 0) / timeConstant);
     return currentValue + (targetValue - currentValue) * alpha;
 }
 
-function setOperatingState(state, nextState) {
+function setOperatingState(state: EngineStateData, nextState: EngineOperatingState): void {
     state.engineOperatingState = nextState;
     state.engineRunning = nextState === ENGINE_OPERATING_STATES.RUNNING;
 }
 
 // Commandes utilisateur
 
-export function requestEngineStart(state) {
+export function requestEngineStart(state: EngineStateData): void {
     if (state.engineOperatingState === ENGINE_OPERATING_STATES.RUNNING
         || state.engineOperatingState === ENGINE_OPERATING_STATES.CRANKING) {
         return;
@@ -171,7 +175,7 @@ export function requestEngineStart(state) {
     setOperatingState(state, ENGINE_OPERATING_STATES.CRANKING);
 }
 
-export function requestEngineStop(state) {
+export function requestEngineStop(state: EngineStateData): void {
     state.ignitionOn = false;
     state.starterActive = false;
     state.combustionEnabled = false;
@@ -188,7 +192,7 @@ export function requestEngineStop(state) {
     }
 }
 
-export function toggleEngine(state) {
+export function toggleEngine(state: EngineStateData): void {
     if (state.engineOperatingState === ENGINE_OPERATING_STATES.RUNNING
         || state.engineOperatingState === ENGINE_OPERATING_STATES.CRANKING) {
         requestEngineStop(state);
@@ -199,7 +203,7 @@ export function toggleEngine(state) {
 
 // Régulation du ralenti
 
-function updateIdleControl(state, dt) {
+function updateIdleControl(state: EngineStateData, dt: number): void {
     if (state.engineOperatingState === ENGINE_OPERATING_STATES.CRANKING) {
         state.idleControlEnabled = true;
         state.idleAirControlTarget = CRANKING_IDLE_AIR_COMMAND;
@@ -266,7 +270,7 @@ function updateIdleControl(state, dt) {
 
 // Démarreur et rupteur — avant la physique
 
-function updateStarterTorque(state, dt) {
+function updateStarterTorque(state: EngineStateData, dt: number): void {
     let targetStarterTorque = 0;
 
     if (state.starterActive) {
@@ -301,7 +305,7 @@ function updateStarterTorque(state, dt) {
     state.starterPower = state.starterTorqueAtCrank * omega;
 }
 
-function updateRevLimiter(state) {
+function updateRevLimiter(state: EngineStateData): void {
     if (!state.ignitionOn
         || state.engineOperatingState !== ENGINE_OPERATING_STATES.RUNNING) {
         state.revLimiterActive = false;
@@ -321,7 +325,7 @@ function updateRevLimiter(state) {
 /**
  * À appeler au début de chaque pas physique, avant l'admission et la combustion.
  */
-export function updateEngineControlBeforePhysics(state, dt) {
+export function updateEngineControlBeforePhysics(state: EngineStateData, dt: number): void {
     if (dt <= 0) return;
 
     updateRevLimiter(state);
@@ -427,7 +431,7 @@ export function updateEngineControlBeforePhysics(state, dt) {
 /**
  * À appeler après Dyno.js, lorsque le nouveau régime est connu.
  */
-export function updateEngineControlAfterPhysics(state, dt) {
+export function updateEngineControlAfterPhysics(state: EngineStateData, dt: number): void {
     if (dt <= 0) return;
 
     if (state.engineOperatingState === ENGINE_OPERATING_STATES.CRANKING) {

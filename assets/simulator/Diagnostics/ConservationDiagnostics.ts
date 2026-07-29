@@ -1,3 +1,5 @@
+import type { EngineStateData } from "../engine/EngineStateTypes.js";
+
 // Diagnostic passif de fermeture des bilans masse/énergie des volumes 0D.
 // Les corrections numériques explicites sont publiées séparément des résidus.
 
@@ -7,17 +9,17 @@ const EXHAUST_SCROLL_COUNT = 2;
 const MIN_MASS_REFERENCE = 1e-12;   // kg
 const MIN_ENERGY_REFERENCE = 1e-6;  // J
 
-function finite(value, fallback = 0) {
-    return Number.isFinite(value) ? value : fallback;
+function finite(value: unknown, fallback = 0): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function arrayValue(array, index, fallback = 0) {
+function arrayValue(array: readonly unknown[] | null | undefined, index: number, fallback = 0): number {
     return Array.isArray(array)
         ? finite(array[index], fallback)
         : fallback;
 }
 
-function sum(array) {
+function sum(array: readonly unknown[] | null | undefined): number {
     if (!Array.isArray(array)) return 0;
     let total = 0;
     for (let index = 0; index < array.length; index++) {
@@ -26,7 +28,7 @@ function sum(array) {
     return total;
 }
 
-function maximumAbsolute(array) {
+function maximumAbsolute(array: readonly unknown[] | null | undefined): number {
     if (!Array.isArray(array)) return 0;
     let maximum = 0;
     for (let index = 0; index < array.length; index++) {
@@ -37,12 +39,14 @@ function maximumAbsolute(array) {
 
 // Calcul sans allocation temporaire dans la boucle haute fréquence.
 function normalizedPercent(
-    residual,
-    storageChange,
-    minimumReference,
-    t1 = 0, t2 = 0, t3 = 0, t4 = 0, t5 = 0, t6 = 0,
-    t7 = 0, t8 = 0, t9 = 0, t10 = 0, t11 = 0
-) {
+    residual: unknown,
+    storageChange: unknown,
+    minimumReference: number,
+    t1: unknown = 0, t2: unknown = 0, t3: unknown = 0,
+    t4: unknown = 0, t5: unknown = 0, t6: unknown = 0,
+    t7: unknown = 0, t8: unknown = 0, t9: unknown = 0,
+    t10: unknown = 0, t11: unknown = 0
+): number {
     const termMagnitude = Math.abs(finite(t1)) + Math.abs(finite(t2))
         + Math.abs(finite(t3)) + Math.abs(finite(t4))
         + Math.abs(finite(t5)) + Math.abs(finite(t6))
@@ -57,7 +61,7 @@ function normalizedPercent(
     return Math.abs(finite(residual)) / reference * 100;
 }
 
-function totalCylinderMass(state, cylinderIndex) {
+function totalCylinderMass(state: EngineStateData, cylinderIndex: number): number {
     return Math.max(arrayValue(state.cylinderGasMass, cylinderIndex), 0)
         + Math.max(
             arrayValue(state.burnedFuelMassInCylinder, cylinderIndex),
@@ -65,7 +69,7 @@ function totalCylinderMass(state, cylinderIndex) {
         );
 }
 
-function totalStoredMass(state) {
+function totalStoredMass(state: EngineStateData): number {
     let total = finite(state.intakeManifoldMass)
         + finite(state.chargeAirMass)
         + sum(state.exhaustManifoldMasses);
@@ -77,7 +81,7 @@ function totalStoredMass(state) {
     return total;
 }
 
-function totalStoredEnergy(state) {
+function totalStoredEnergy(state: EngineStateData): number {
     return sum(state.cylinderInternalEnergies)
         + finite(state.intakeManifoldInternalEnergy)
         + finite(state.chargeAirInternalEnergy)
@@ -85,16 +89,16 @@ function totalStoredEnergy(state) {
         + sum(state.exhaustManifoldWallEnergies);
 }
 
-function resetArray(array, length) {
+function resetArray<T extends number[]>(array: T, length: number): T {
     if (!Array.isArray(array) || array.length !== length) {
-        return new Array(length).fill(0);
+        return new Array(length).fill(0) as T;
     }
 
     array.fill(0);
     return array;
 }
 
-function prepareBookkeepingArrays(state) {
+function prepareBookkeepingArrays(state: EngineStateData): void {
     state.cylinderFuelMassAddedStep = resetArray(
         state.cylinderFuelMassAddedStep,
         CYLINDER_COUNT
@@ -190,7 +194,7 @@ function prepareBookkeepingArrays(state) {
 /**
  * Capture l'état initial et remet à zéro les termes de bilan du sous-pas.
  */
-export function beginConservationStep(state, captureResiduals = true) {
+export function beginConservationStep(state: EngineStateData, captureResiduals = true): boolean {
     // Les termes de sous-pas doivent toujours être remis à zéro car ils sont
     // aussi consommés par le CycleRecorder. Seule la capture diagnostique peut
     // être décimée sans toucher à la physique.
@@ -249,7 +253,7 @@ export function beginConservationStep(state, captureResiduals = true) {
     return true;
 }
 
-function writeCylinderResiduals(state, dt) {
+function writeCylinderResiduals(state: EngineStateData, dt: number): { maximumMassPercent: number; maximumEnergyPercent: number } {
     let maximumMassPercent = 0;
     let maximumEnergyPercent = 0;
 
@@ -360,7 +364,7 @@ function writeCylinderResiduals(state, dt) {
     return { maximumMassPercent, maximumEnergyPercent };
 }
 
-function writeIntakeResiduals(state, dt) {
+function writeIntakeResiduals(state: EngineStateData, dt: number): void {
     const initialMass = finite(state._conservationInitialIntakeMass);
     const finalMass = finite(state.intakeManifoldMass);
     const storageMassChange = finalMass - initialMass;
@@ -407,7 +411,7 @@ function writeIntakeResiduals(state, dt) {
     );
 }
 
-function writeChargeAirResiduals(state, dt) {
+function writeChargeAirResiduals(state: EngineStateData, dt: number): void {
     const initialMass = finite(state._conservationInitialChargeMass);
     const finalMass = finite(state.chargeAirMass);
     const storageMassChange = finalMass - initialMass;
@@ -460,7 +464,7 @@ function writeChargeAirResiduals(state, dt) {
     );
 }
 
-function writeExhaustResiduals(state, dt) {
+function writeExhaustResiduals(state: EngineStateData, dt: number): void {
     for (let scroll = 0; scroll < EXHAUST_SCROLL_COUNT; scroll++) {
         const initialMass = arrayValue(
             state._conservationInitialExhaustMass,
@@ -605,7 +609,7 @@ function writeExhaustResiduals(state, dt) {
     }
 }
 
-function writeGlobalResiduals(state, dt) {
+function writeGlobalResiduals(state: EngineStateData, dt: number): void {
     const initialMass = finite(state._conservationInitialTotalMass);
     const finalMass = totalStoredMass(state);
     const storageMassChange = finalMass - initialMass;
@@ -719,7 +723,7 @@ function writeGlobalResiduals(state, dt) {
 /**
  * Ferme les bilans du sous-pas et publie les diagnostics dans EngineState.
  */
-export function finalizeConservationStep(state, dt) {
+export function finalizeConservationStep(state: EngineStateData, dt: number): void {
     if (!state._conservationCaptureActive
         || !Number.isFinite(dt) || dt <= 0) {
         return;

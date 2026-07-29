@@ -2,13 +2,14 @@
 // La distance routière équivalente provient du modèle de banc dans Dyno.js.
 
 import { FUEL_DENSITY_KG_PER_L } from "./FuelConstants.js";
+import type { EngineStateData } from "../engine/EngineStateTypes.js";
 
 // La combustion est pulsée cylindre par cylindre. Un affichage direct serait à
 // zéro pendant une grande partie du cycle puis présenterait des pics très élevés.
 // Une moyenne exponentielle courte reproduit le comportement d'un instrument.
 const SMOOTHING_TAU = 0.05; // s
 
-export function updateFuel(state, dt) {
+export function updateFuel(state: EngineStateData, dt: number): void {
     if (dt <= 0) {
         return;
     }
