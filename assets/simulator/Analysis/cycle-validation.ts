@@ -9,8 +9,8 @@ const PV_TORQUE_CLOSURE_POLICY = Object.freeze({
 });
 
 function evaluatePvTorqueClosure(
-    torqueFromPvNm,
-    indicatedTorqueNm,
+    torqueFromPvNm: any,
+    indicatedTorqueNm: any,
     policy = PV_TORQUE_CLOSURE_POLICY
 ) {
     if (!Number.isFinite(torqueFromPvNm)
@@ -187,26 +187,26 @@ const {
         peakPressureAfterCa90ToleranceDeg: 25
     });
 
-    function finite(value, fallback = 0) {
+    function finite(value: any, fallback = 0) {
         return Number.isFinite(value) ? value : fallback;
     }
 
-    function clamp(value, minimum, maximum) {
+    function clamp(value: any, minimum: any, maximum: any) {
         return Math.max(minimum, Math.min(maximum, value));
     }
 
-    function normalize720(angleDeg) {
+    function normalize720(angleDeg: any) {
         if (!Number.isFinite(angleDeg)) return NaN;
         if (Math.abs(angleDeg - FULL_CYCLE_DEG) <= 1e-9) return FULL_CYCLE_DEG;
         return ((angleDeg % FULL_CYCLE_DEG) + FULL_CYCLE_DEG) % FULL_CYCLE_DEG;
     }
 
-    function circularDistanceDeg(a, b, period = 360) {
+    function circularDistanceDeg(a: any, b: any, period = 360) {
         const difference = Math.abs(a - b) % period;
         return Math.min(difference, period - difference);
     }
 
-    function mean(values) {
+    function mean(values: any) {
         if (!Array.isArray(values) || values.length === 0) return NaN;
         let total = 0;
         let count = 0;
@@ -218,26 +218,26 @@ const {
         return count > 0 ? total / count : NaN;
     }
 
-    function standardDeviation(values) {
+    function standardDeviation(values: any) {
         const average = mean(values);
         if (!Number.isFinite(average)) return NaN;
         const finiteValues = values.filter(Number.isFinite);
         if (finiteValues.length < 2) return 0;
         const variance = finiteValues.reduce(
-            (sum, value) => sum + (value - average) ** 2,
+            (sum: any, value: any) => sum + (value - average) ** 2,
             0
         ) / (finiteValues.length - 1);
         return Math.sqrt(variance);
     }
 
-    function coefficientOfVariationPercent(values) {
+    function coefficientOfVariationPercent(values: any) {
         const average = mean(values);
         if (!Number.isFinite(average) || Math.abs(average) <= EPSILON) return NaN;
         return standardDeviation(values) / Math.abs(average) * 100;
     }
 
-    function percentile(values, p) {
-        const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+    function percentile(values: any, p: any) {
+        const sorted = values.filter(Number.isFinite).sort((a: any, b: any) => a - b);
         if (sorted.length === 0) return NaN;
         const position = clamp(p, 0, 1) * (sorted.length - 1);
         const lower = Math.floor(position);
@@ -247,7 +247,7 @@ const {
         return sorted[lower] * (1 - fraction) + sorted[upper] * fraction;
     }
 
-    function unwrapAfterReference(angleDeg, referenceDeg = 360) {
+    function unwrapAfterReference(angleDeg: any, referenceDeg = 360) {
         if (!Number.isFinite(angleDeg)) return NaN;
         let value = angleDeg;
         while (value < referenceDeg - 180) value += FULL_CYCLE_DEG;
@@ -256,17 +256,17 @@ const {
     }
 
     function makeTest({
-        id,
-        group,
-        label,
-        status,
-        measured = null,
-        expected = null,
-        detail = "",
-        severity = "normal",
-        statusLabel = null,
-        diagnostics = null
-    }) {
+                          id,
+                          group,
+                          label,
+                          status,
+                          measured = null,
+                          expected = null,
+                          detail = "",
+                          severity = "normal",
+                          statusLabel = null,
+                          diagnostics = null
+                      }: any) {
         return {
             id,
             group,
@@ -281,21 +281,21 @@ const {
         };
     }
 
-    function classifyUpper(value, passLimit, warningLimit) {
+    function classifyUpper(value: any, passLimit: any, warningLimit: any) {
         if (!Number.isFinite(value)) return CYCLE_VALIDATION_STATUS.UNAVAILABLE;
         if (value <= passLimit) return CYCLE_VALIDATION_STATUS.PASS;
         if (value <= warningLimit) return CYCLE_VALIDATION_STATUS.WARNING;
         return CYCLE_VALIDATION_STATUS.FAIL;
     }
 
-    function classifyRange(value, minimum, maximum) {
+    function classifyRange(value: any, minimum: any, maximum: any) {
         if (!Number.isFinite(value)) return CYCLE_VALIDATION_STATUS.UNAVAILABLE;
         return value >= minimum && value <= maximum
             ? CYCLE_VALIDATION_STATUS.PASS
             : CYCLE_VALIDATION_STATUS.FAIL;
     }
 
-    function summarizeTests(tests) {
+    function summarizeTests(tests: any) {
         const counts = {
             pass: 0,
             warning: 0,
@@ -304,7 +304,7 @@ const {
         };
 
         for (const test of tests) {
-            if (counts[test.status] !== undefined) counts[test.status]++;
+            if (test.status in counts) counts[test.status as keyof typeof counts]++;
         }
 
         const status = counts.fail > 0
@@ -318,17 +318,17 @@ const {
         return { status, counts };
     }
 
-    function cycleSamples(cycle) {
+    function cycleSamples(cycle: any) {
         return Array.isArray(cycle?.samples)
-            ? cycle.samples.filter(sample => sample && typeof sample === "object")
+            ? cycle.samples.filter((sample: any) => sample && typeof sample === "object")
             : [];
     }
 
-    function computePvMetrics(samples, {
+    function computePvMetrics(samples: any, {
         sweptVolumeM3,
         cylinderCount,
         getGeometricVolumeM3
-    }) {
+    }: any) {
         if (samples.length < 2
             || !Number.isFinite(sweptVolumeM3)
             || sweptVolumeM3 <= 0
@@ -365,7 +365,7 @@ const {
         const pmepBar = pumpingWorkJ / sweptVolumeM3 * PASCAL_TO_BAR;
         const torqueFromPvNm = netWorkJ * cylinderCount / FOUR_PI;
         const meanIndicatedTorqueNm = mean(
-            samples.slice(0, -1).map(sample => sample.indicatedTorqueNm)
+            samples.slice(0, -1).map((sample: any) => sample.indicatedTorqueNm)
         );
         const consistencyErrorNm = Math.abs(
             torqueFromPvNm - meanIndicatedTorqueNm
@@ -391,9 +391,9 @@ const {
         };
     }
 
-    function validateRepeatability(history, options, thresholds) {
+    function validateRepeatability(history: any, options: any, thresholds: any) {
         const cycles = (history ?? [])
-            .filter(cycle => cycleSamples(cycle).length >= 2)
+            .filter((cycle: any) => cycleSamples(cycle).length >= 2)
             .slice(-10);
 
         if (cycles.length < 3) {
@@ -449,7 +449,7 @@ const {
         });
     }
 
-    function validateConvergence(convergenceCycles, options, thresholds) {
+    function validateConvergence(convergenceCycles: any, options: any, thresholds: any) {
         const entries = Object.entries(convergenceCycles ?? {})
             .map(([step, cycle]) => ({ step: Number(step), cycle }))
             .filter(entry =>
@@ -458,7 +458,7 @@ const {
             )
             .sort((a, b) => b.step - a.step);
 
-        const findStep = target => entries.find(
+        const findStep = (target: any) => entries.find(
             entry => Math.abs(entry.step - target) <= 1e-9
         );
         const coarse = findStep(1);
@@ -477,7 +477,7 @@ const {
             });
         }
 
-        const buildMetrics = entry => {
+        const buildMetrics = (entry: any) => {
             const samples = cycleSamples(entry.cycle);
             const pv = computePvMetrics(samples, options);
             if (!pv) return null;
@@ -486,21 +486,21 @@ const {
                 netImepBar: pv.netImepBar,
                 peakPressurePa: entry.cycle?.summary?.peakPressurePa,
                 peakPressureAngleDeg:
-                    entry.cycle?.summary?.peakPressureAngleDeg,
+                entry.cycle?.summary?.peakPressureAngleDeg,
                 ca50MeasuredDeg:
                     entry.cycle?.events?.ca50MeasuredDeg
                     ?? entry.cycle?.events?.ca50Deg,
                 meanBoostBar:
-                    entry.cycle?.summary?.meanBoostBarGauge,
+                entry.cycle?.summary?.meanBoostBarGauge,
                 meanTurboRpm: mean(
-                    samples.map(sample => sample?.turboRPM)
+                    samples.map((sample: any) => sample?.turboRPM)
                 )
             };
         };
 
-        const q1 = buildMetrics(coarse);
-        const q05 = buildMetrics(medium);
-        const q025 = buildMetrics(fine);
+        const q1: Record<string, any> | null = buildMetrics(coarse);
+        const q05: Record<string, any> | null = buildMetrics(medium);
+        const q025: Record<string, any> | null = buildMetrics(fine);
         if (!q1 || !q05 || !q025) {
             return makeTest({
                 id: "convergence",
@@ -557,11 +557,11 @@ const {
             }
         ];
 
-        const diagnostics = [];
-        let overallStatus = CYCLE_VALIDATION_STATUS.PASS;
+        const diagnostics: any[] = [];
+        let overallStatus: any = CYCLE_VALIDATION_STATUS.PASS;
 
-        const worsenStatus = status => {
-            const rank = {
+        const worsenStatus = (status: any) => {
+            const rank: Record<string, number> = {
                 [CYCLE_VALIDATION_STATUS.PASS]: 0,
                 [CYCLE_VALIDATION_STATUS.WARNING]: 1,
                 [CYCLE_VALIDATION_STATUS.FAIL]: 2,
@@ -596,8 +596,8 @@ const {
                 && e2 <= noiseFloor;
             const monotonic = effectivelyIdentical
                 || e2 <= e1
-                    * thresholds.convergenceMonotonicToleranceRatio
-                    + noiseFloor;
+                * thresholds.convergenceMonotonicToleranceRatio
+                + noiseFloor;
 
             let apparentOrder = NaN;
             if (e1 > noiseFloor && e2 > noiseFloor) {
@@ -709,14 +709,14 @@ const {
         });
     }
 
-    function validateEngineCycle(cycle, {
+    function validateEngineCycle(cycle: any, {
         sweptVolumeM3,
         cylinderCount = 4,
         getGeometricVolumeM3,
         cycleHistory = [],
         convergenceCycles = null,
         thresholds: thresholdOverrides = {}
-    } = {}) {
+    }: any = {}) {
         const thresholds = {
             ...DEFAULT_CYCLE_VALIDATION_THRESHOLDS,
             ...thresholdOverrides
@@ -746,7 +746,7 @@ const {
             };
         }
 
-        const angles = samples.map(sample => finite(sample.angleDeg, NaN));
+        const angles = samples.map((sample: any) => finite(sample.angleDeg, NaN));
         const firstAngle = angles[0];
         const lastAngle = angles.at(-1);
         const angularSteps = [];
@@ -812,12 +812,12 @@ const {
         const gapStatus = !Number.isFinite(maximumAngularGapDeg)
             ? CYCLE_VALIDATION_STATUS.FAIL
             : maximumAngularGapDeg <= nominalStepDeg * thresholds.angularGapMultiplierWarning
-                && stepRelativeError <= thresholds.angularStepRelativeTolerance
-                && duplicateCount === 0
-                && reverseCount === 0
+            && stepRelativeError <= thresholds.angularStepRelativeTolerance
+            && duplicateCount === 0
+            && reverseCount === 0
                 ? CYCLE_VALIDATION_STATUS.PASS
                 : maximumAngularGapDeg <= nominalStepDeg * thresholds.angularGapMultiplierFail
-                    && reverseCount === 0
+                && reverseCount === 0
                     ? CYCLE_VALIDATION_STATUS.WARNING
                     : CYCLE_VALIDATION_STATUS.FAIL;
         tests.push(makeTest({
@@ -855,9 +855,9 @@ const {
             expected: "0 NaN / Infinity"
         }));
 
-        const pressures = samples.map(sample => sample.cylinderPressurePa);
-        const temperatures = samples.map(sample => sample.cylinderTemperatureK);
-        const pressureRangeStatus = pressures.every(value =>
+        const pressures = samples.map((sample: any) => sample.cylinderPressurePa);
+        const temperatures = samples.map((sample: any) => sample.cylinderTemperatureK);
+        const pressureRangeStatus = pressures.every((value: any) =>
             Number.isFinite(value)
             && value >= thresholds.minimumPressurePa
             && value <= thresholds.maximumPressurePa
@@ -871,7 +871,7 @@ const {
             expected: `${(thresholds.minimumPressurePa * PASCAL_TO_BAR).toFixed(3)}–${(thresholds.maximumPressurePa * PASCAL_TO_BAR).toFixed(0)} bar abs.`
         }));
 
-        const temperatureRangeStatus = temperatures.every(value =>
+        const temperatureRangeStatus = temperatures.every((value: any) =>
             Number.isFinite(value)
             && value >= thresholds.minimumTemperatureK
             && value <= thresholds.maximumTemperatureK
@@ -905,10 +905,10 @@ const {
                 geometryErrorsCm3.map(value => value ** 2)
             ));
             const geometryStatus = maximumGeometryErrorCm3 <= thresholds.volumeMaximumErrorCm3Pass
-                && rmsGeometryErrorCm3 <= thresholds.volumeRmsErrorCm3Pass
+            && rmsGeometryErrorCm3 <= thresholds.volumeRmsErrorCm3Pass
                 ? CYCLE_VALIDATION_STATUS.PASS
                 : maximumGeometryErrorCm3 <= thresholds.volumeMaximumErrorCm3Warning
-                    && rmsGeometryErrorCm3 <= thresholds.volumeRmsErrorCm3Warning
+                && rmsGeometryErrorCm3 <= thresholds.volumeRmsErrorCm3Warning
                     ? CYCLE_VALIDATION_STATUS.WARNING
                     : CYCLE_VALIDATION_STATUS.FAIL;
             tests.push(makeTest({
@@ -1028,11 +1028,11 @@ const {
                 : "Le statut compare le franchissement xb=0,5 réellement enregistré à la position analytique de Wiebe."
         }));
 
-        const peakPressureSample = samples.reduce((peak, sample) =>
-            finite(sample.cylinderPressurePa) > finite(peak?.cylinderPressurePa)
-                ? sample
-                : peak,
-        samples[0]);
+        const peakPressureSample = samples.reduce((peak: any, sample: any) =>
+                finite(sample.cylinderPressurePa) > finite(peak?.cylinderPressurePa)
+                    ? sample
+                    : peak,
+            samples[0]);
         const peakPressureAngle = unwrapAfterReference(peakPressureSample?.angleDeg);
         const peakTimingAvailable = eventsAvailable && Number.isFinite(peakPressureAngle);
         const peakTimingValid = peakTimingAvailable
@@ -1060,7 +1060,7 @@ const {
             events.exhaustValveCloseDeg
         ];
         const valveEventsAvailable = valveEventValues.every(Number.isFinite);
-        const cyclicDuration = (openDeg, closeDeg) =>
+        const cyclicDuration = (openDeg: any, closeDeg: any) =>
             ((closeDeg - openDeg) % FULL_CYCLE_DEG + FULL_CYCLE_DEG) % FULL_CYCLE_DEG;
         const intakeDurationDeg = valveEventsAvailable
             ? cyclicDuration(events.intakeValveOpenDeg, events.intakeValveCloseDeg)
@@ -1088,22 +1088,22 @@ const {
             expected: `durées cycliques comprises entre 0° et ${thresholds.valveDurationMaximumDeg}°`
         }));
 
-        const intakeLiftsMm = samples.map(sample => finite(sample.intakeValveLiftM) * 1000);
-        const exhaustLiftsMm = samples.map(sample => finite(sample.exhaustValveLiftM) * 1000);
+        const intakeLiftsMm = samples.map((sample: any) => finite(sample.intakeValveLiftM) * 1000);
+        const exhaustLiftsMm = samples.map((sample: any) => finite(sample.exhaustValveLiftM) * 1000);
         const minimumValveLiftMm = Math.min(...intakeLiftsMm, ...exhaustLiftsMm);
         const closedValveLeakMm = Math.max(
-            ...samples.map(sample => !sample.intakeValveOpen
+            ...samples.map((sample: any) => !sample.intakeValveOpen
                 ? Math.max(finite(sample.intakeValveLiftM) * 1000, 0)
                 : 0),
-            ...samples.map(sample => !sample.exhaustValveOpen
+            ...samples.map((sample: any) => !sample.exhaustValveOpen
                 ? Math.max(finite(sample.exhaustValveLiftM) * 1000, 0)
                 : 0)
         );
         const valveStatus = minimumValveLiftMm >= -thresholds.negativeValveLiftToleranceMm
-            && closedValveLeakMm <= thresholds.closedValveLiftToleranceMm
+        && closedValveLeakMm <= thresholds.closedValveLiftToleranceMm
             ? CYCLE_VALIDATION_STATUS.PASS
             : minimumValveLiftMm >= -thresholds.negativeValveLiftToleranceMm * 4
-                && closedValveLeakMm <= thresholds.closedValveLiftToleranceMm * 4
+            && closedValveLeakMm <= thresholds.closedValveLiftToleranceMm * 4
                 ? CYCLE_VALIDATION_STATUS.WARNING
                 : CYCLE_VALIDATION_STATUS.FAIL;
         tests.push(makeTest({
@@ -1116,20 +1116,20 @@ const {
         }));
 
         const meanClosedCycleTorqueNm = mean(
-            samples.slice(0, -1).map(sample => sample.closedCycleTorqueNm)
+            samples.slice(0, -1).map((sample: any) => sample.closedCycleTorqueNm)
         );
         const meanPumpingTorqueNm = mean(
-            samples.slice(0, -1).map(sample => sample.pumpingTorqueNm)
+            samples.slice(0, -1).map((sample: any) => sample.pumpingTorqueNm)
         );
         const meanIndicatedTorqueForClosureNm = mean(
-            samples.slice(0, -1).map(sample => sample.indicatedTorqueNm)
+            samples.slice(0, -1).map((sample: any) => sample.indicatedTorqueNm)
         );
         const mechanicalClosureErrorPercent = Math.abs(meanIndicatedTorqueForClosureNm) > EPSILON
             ? Math.abs(
-                meanClosedCycleTorqueNm
-                + meanPumpingTorqueNm
-                - meanIndicatedTorqueForClosureNm
-            ) / Math.abs(meanIndicatedTorqueForClosureNm) * 100
+            meanClosedCycleTorqueNm
+            + meanPumpingTorqueNm
+            - meanIndicatedTorqueForClosureNm
+        ) / Math.abs(meanIndicatedTorqueForClosureNm) * 100
             : NaN;
         tests.push(makeTest({
             id: "mechanical-indicated-closure",
@@ -1188,19 +1188,19 @@ const {
                 pvMetrics.meanIndicatedTorqueNm,
                 {
                     excellentRelativeErrorPercent:
-                        thresholds.pvTorqueErrorPercentExcellent,
+                    thresholds.pvTorqueErrorPercentExcellent,
                     validatedRelativeErrorPercent:
-                        thresholds.pvTorqueErrorPercentPass,
+                    thresholds.pvTorqueErrorPercentPass,
                     warningRelativeErrorPercent:
-                        thresholds.pvTorqueErrorPercentWarning,
+                    thresholds.pvTorqueErrorPercentWarning,
                     lowTorqueThresholdNm:
-                        thresholds.pvLowTorqueThresholdNm,
+                    thresholds.pvLowTorqueThresholdNm,
                     lowTorqueExcellentAbsoluteErrorNm:
-                        thresholds.pvLowTorqueAbsoluteErrorNmExcellent,
+                    thresholds.pvLowTorqueAbsoluteErrorNmExcellent,
                     lowTorqueValidatedAbsoluteErrorNm:
-                        thresholds.pvLowTorqueAbsoluteErrorNmPass,
+                    thresholds.pvLowTorqueAbsoluteErrorNmPass,
                     lowTorqueWarningAbsoluteErrorNm:
-                        thresholds.pvLowTorqueAbsoluteErrorNmWarning
+                    thresholds.pvLowTorqueAbsoluteErrorNmWarning
                 }
             );
             tests.push(makeTest({
@@ -1236,7 +1236,7 @@ const {
             EPSILON
         ) > 0
             ? Math.abs(lastPressure - firstPressure)
-                / Math.max(Math.abs(firstPressure), Math.abs(lastPressure), EPSILON)
+            / Math.max(Math.abs(firstPressure), Math.abs(lastPressure), EPSILON)
             : NaN;
         tests.push(makeTest({
             id: "periodic-boundary",
@@ -1251,7 +1251,7 @@ const {
             expected: `≤ ${(thresholds.boundaryPressureRelativeErrorPass * 100).toFixed(1)} %`
         }));
 
-        const rpms = samples.map(sample => sample.rpm).filter(Number.isFinite);
+        const rpms = samples.map((sample: any) => sample.rpm).filter(Number.isFinite);
         const meanRpm = mean(rpms);
         const rpmSpanPercent = rpms.length > 0 && Math.abs(meanRpm) > EPSILON
             ? (Math.max(...rpms) - Math.min(...rpms)) / Math.abs(meanRpm) * 100
@@ -1299,7 +1299,7 @@ const {
                 meanRpm,
                 rpmSpanPercent,
                 meanBoostBarGauge: mean(
-                    samples.map(sample => sample.boostBarGauge)
+                    samples.map((sample: any) => sample.boostBarGauge)
                 )
             },
             acquisition: {
@@ -1314,7 +1314,7 @@ const {
         };
     }
 
-    function cycleValidationReportToCsv(report) {
+    function cycleValidationReportToCsv(report: any) {
         const columns = [
             "groupe",
             "controle",
@@ -1323,7 +1323,7 @@ const {
             "critere",
             "detail"
         ];
-        const escape = value => {
+        const escape = (value: any) => {
             const text = String(value ?? "");
             return `"${text.replaceAll('"', '""')}"`;
         };
@@ -1342,12 +1342,15 @@ const {
     }
 
     class CycleValidationReport {
-        constructor(options = {}) {
+        options: Record<string, any>;
+        latestReport: any;
+
+        constructor(options: Record<string, any> = {}) {
             this.options = { ...options };
             this.latestReport = null;
         }
 
-        validate(cycle, overrides = {}) {
+        validate(cycle: any, overrides: Record<string, any> = {}) {
             this.latestReport = validateEngineCycle(cycle, {
                 ...this.options,
                 ...overrides

@@ -44,7 +44,7 @@ const NON_REGRESSION_TOLERANCES = Object.freeze({
     })
 });
 
-function hashText(text) {
+function hashText(text: any) {
     let hash = 2166136261;
     for (let index = 0; index < text.length; index++) {
         hash ^= text.charCodeAt(index);
@@ -53,7 +53,7 @@ function hashText(text) {
     return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-function modelFingerprint(report) {
+function modelFingerprint(report: any) {
     const stableModel = {
         project: report?.project ?? null,
         model: report?.model ?? null,
@@ -65,21 +65,21 @@ function modelFingerprint(report) {
     return `fnv1a-${hashText(JSON.stringify(stableModel))}`;
 }
 
-function numericTestValue(report, testId) {
+function numericTestValue(report: any, testId: any) {
     const test = report?.cycleValidation?.tests?.find(
-        candidate => candidate.id === testId
+        (candidate: any) => candidate.id === testId
     );
     if (!test) return null;
 
     // La non-régression stocke directement les métriques structurées de convergence.
     if (testId === "convergence" && Array.isArray(test.diagnostics)) {
         const relativeChanges = test.diagnostics
-            .filter(item =>
+            .filter((item: any) =>
                 item?.available
                 && item?.mode === "relative"
                 && Number.isFinite(item?.e2RelativePercent)
             )
-            .map(item => item.e2RelativePercent);
+            .map((item: any) => item.e2RelativePercent);
         if (relativeChanges.length > 0) {
             return Math.max(...relativeChanges);
         }
@@ -91,11 +91,11 @@ function numericTestValue(report, testId) {
     return match ? Number(match[0]) : null;
 }
 
-function extractReferenceMetrics(report) {
+function extractReferenceMetrics(report: any) {
     const cycleMetrics = report?.cycleValidation?.metrics ?? {};
     const cycle = report?.cycle ?? null;
     const points = Object.fromEntries(
-        (report?.multiPointValidation?.points ?? []).map(point => [
+        (report?.multiPointValidation?.points ?? []).map((point: any) => [
             point.id,
             {
                 id: point.id,
@@ -122,7 +122,7 @@ function extractReferenceMetrics(report) {
     );
 
     const transients = Object.fromEntries(
-        (report?.transientValidation?.scenarios ?? []).map(scenario => [
+        (report?.transientValidation?.scenarios ?? []).map((scenario: any) => [
             scenario.id,
             {
                 id: scenario.id,
@@ -167,7 +167,7 @@ function extractReferenceMetrics(report) {
     };
 }
 
-function isCompleteDeterministicReport(report) {
+function isCompleteDeterministicReport(report: any) {
     return report?.referenceProtocol?.type === "deterministic-reference"
         && Array.isArray(report?.multiPointValidation?.points)
         && report.multiPointValidation.points.length > 0
@@ -175,7 +175,7 @@ function isCompleteDeterministicReport(report) {
         && Number.isFinite(report?.results?.peakPowerHp);
 }
 
-function isCompleteReferenceCandidate(report) {
+function isCompleteReferenceCandidate(report: any) {
     return isCompleteDeterministicReport(report)
         && Array.isArray(report?.transientValidation?.scenarios)
         && report.transientValidation.scenarios.length > 0;
@@ -188,7 +188,7 @@ function createReferenceIdentifier() {
     return `3sgte-st205-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function buildModelReference(report, label = null) {
+function buildModelReference(report: any, label = null) {
     if (!isCompleteReferenceCandidate(report)) {
         throw new Error("La référence doit provenir d'un tir déterministe complet avec campagnes multipoint et transitoire.");
     }
@@ -217,7 +217,7 @@ function buildModelReference(report, label = null) {
     };
 }
 
-function validateModelReference(reference) {
+function validateModelReference(reference: any) {
     if (!reference || typeof reference !== "object") {
         throw new Error("Le fichier de référence n'est pas un objet JSON valide.");
     }
@@ -243,7 +243,7 @@ function loadModelReference() {
     }
 }
 
-function persistModelReference(reference) {
+function persistModelReference(reference: any) {
     const validated = validateModelReference(reference);
     localStorage.setItem(
         MODEL_REFERENCE_STORAGE_KEY,
@@ -252,14 +252,14 @@ function persistModelReference(reference) {
     return validated;
 }
 
-function classifyRegressionValue(value, passLimit, warningLimit) {
+function classifyRegressionValue(value: any, passLimit: any, warningLimit: any) {
     if (!Number.isFinite(value)) return CYCLE_VALIDATION_STATUS.UNAVAILABLE;
     if (value <= passLimit) return CYCLE_VALIDATION_STATUS.PASS;
     if (value <= warningLimit) return CYCLE_VALIDATION_STATUS.WARNING;
     return CYCLE_VALIDATION_STATUS.FAIL;
 }
 
-function formatRegressionNumber(value, unit = "", digits = 2) {
+function formatRegressionNumber(value: any, unit = "", digits = 2) {
     if (!Number.isFinite(value)) return "—";
     const absolute = Math.abs(value);
     const number = absolute !== 0 && (absolute < 1e-3 || absolute >= 1e6)
@@ -269,18 +269,18 @@ function formatRegressionNumber(value, unit = "", digits = 2) {
 }
 
 function createRegressionRow({
-    group,
-    id,
-    label,
-    referenceValue,
-    currentValue,
-    unit = "",
-    digits = 2,
-    mode = "relative",
-    pass,
-    warning,
-    detail = ""
-}) {
+                                 group,
+                                 id,
+                                 label,
+                                 referenceValue,
+                                 currentValue,
+                                 unit = "",
+                                 digits = 2,
+                                 mode = "relative",
+                                 pass,
+                                 warning,
+                                 detail = ""
+                             }: any) {
     let measuredDifference = NaN;
     let differenceLabel = "—";
     let criterionLabel = "—";
@@ -324,7 +324,7 @@ function createRegressionRow({
     };
 }
 
-function compareReportWithReference(report, reference) {
+function compareReportWithReference(report: any, reference: any) {
     if (!reference) {
         return {
             generatedAt: new Date().toISOString(),
@@ -803,7 +803,7 @@ function compareReportWithReference(report, reference) {
     };
 }
 
-function regressionStatusLabel(status) {
+function regressionStatusLabel(status: any) {
     switch (status) {
         case CYCLE_VALIDATION_STATUS.PASS:
             return "Conforme";

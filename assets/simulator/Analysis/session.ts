@@ -23,9 +23,9 @@ import {
 } from "./non-regression.js";
 
 export function createSessionModule({
-    motor, cycleValidator, dynoSweep, liveData, referenceRun, ui,
-    chartsApi, transientApi
-}) {
+                                        motor, cycleValidator, dynoSweep, liveData, referenceRun, ui,
+                                        chartsApi, transientApi
+                                    }: any) {
     const {
         cycleChart, pvChart, turboChart, residualChart,
         clearCycleValidationReport, renderCycleValidationReport,
@@ -37,7 +37,7 @@ export function createSessionModule({
     } = chartsApi;
     const { clearTransientValidationReport, renderTransientValidationReport } = transientApi;
 
-    function renderNonRegressionReport(report = null) {
+    function renderNonRegressionReport(report: any = null) {
         liveData.nonRegressionReport = report;
         const reference = loadModelReference();
         const panel = ui.nonRegressionGlobalStatus?.closest(".non-regression-report");
@@ -65,7 +65,7 @@ export function createSessionModule({
             );
             setText(ui.nonRegressionConclusion, report.conclusion);
             if (ui.nonRegressionTableBody) {
-                ui.nonRegressionTableBody.innerHTML = report.rows.map(row => `
+                ui.nonRegressionTableBody.innerHTML = report.rows.map((row: any) => `
                     <tr data-test-status="${row.status}">
                         <td>${escapeHtml(row.group)}</td>
                         <td>
@@ -90,7 +90,7 @@ export function createSessionModule({
             setText(
                 ui.nonRegressionConclusion,
                 report?.conclusion
-                    ?? "La référence ne sera jamais créée ou remplacée automatiquement."
+                ?? "La référence ne sera jamais créée ou remplacée automatiquement."
             );
             if (ui.nonRegressionTableBody) {
                 ui.nonRegressionTableBody.innerHTML = `
@@ -128,8 +128,8 @@ export function createSessionModule({
                 = !currentSessionIsReferenceCompatible();
             ui.nonRegressionSetReferenceButton.title
                 = currentSessionIsReferenceCompatible()
-                    ? "Utiliser explicitement la session affichée comme nouvelle référence"
-                    : "Sélectionnez ou exécutez un tir déterministe complet avec transitoires";
+                ? "Utiliser explicitement la session affichée comme nouvelle référence"
+                : "Sélectionnez ou exécutez un tir déterministe complet avec transitoires";
         }
         if (ui.nonRegressionExportReferenceButton) {
             ui.nonRegressionExportReferenceButton.disabled = !reference;
@@ -201,7 +201,7 @@ export function createSessionModule({
         renderNonRegressionReport(compareReportWithReference(null, null));
     }
 
-    async function importModelReferenceFile(file) {
+    async function importModelReferenceFile(file: any) {
         if (!file) return;
         try {
             const parsed = JSON.parse(await file.text());
@@ -220,7 +220,7 @@ export function createSessionModule({
             refreshNonRegressionComparison();
         } catch (error) {
             console.error("Import de référence impossible.", error);
-            window.alert(error?.message ?? "Le fichier de référence est invalide.");
+            window.alert(error instanceof Error ? error.message : "Le fichier de référence est invalide.");
         } finally {
             if (ui.nonRegressionImportFileInput) {
                 ui.nonRegressionImportFileInput.value = "";
@@ -228,8 +228,8 @@ export function createSessionModule({
         }
     }
 
-    function nonRegressionReportToCsv(report) {
-        const csvCell = value => {
+    function nonRegressionReportToCsv(report: any) {
+        const csvCell = (value: any) => {
             const text = value === null || value === undefined ? "" : String(value);
             return `"${text.replaceAll('"', '""')}"`;
         };
@@ -237,7 +237,7 @@ export function createSessionModule({
             "groupe", "indicateur", "reference", "actuel", "ecart",
             "tolerance", "statut", "detail"
         ];
-        const rows = (report?.rows ?? []).map(row => [
+        const rows = (report?.rows ?? []).map((row: any) => [
             row.group,
             row.label,
             row.referenceLabel,
@@ -278,7 +278,7 @@ export function createSessionModule({
         return report;
     }
 
-    function calculatePvMetrics(cycle) {
+    function calculatePvMetrics(cycle: any) {
         const samples = cycle?.samples;
         if (!Array.isArray(samples) || samples.length < 2) return null;
 
@@ -339,14 +339,14 @@ export function createSessionModule({
         const hasCycle = Boolean(
             cycle?.samples?.length
             && finite(cycle.samples.at(-1)?.angleDeg)
-                - finite(cycle.samples[0]?.angleDeg) >= 719
+            - finite(cycle.samples[0]?.angleDeg) >= 719
         );
         setHidden(ui.cycleEmptyState, hasCycle);
         setHidden(ui.pvEmptyState, hasCycle);
 
         if (!hasCycle) {
-            cycleChart.data.datasets.forEach(dataset => { dataset.data = []; });
-            pvChart.data.datasets.forEach(dataset => { dataset.data = []; });
+            cycleChart.data.datasets.forEach((dataset: any) => { dataset.data = []; });
+            pvChart.data.datasets.forEach((dataset: any) => { dataset.data = []; });
             cycleChart.update("none");
             pvChart.update("none");
             clearCycleValidationReport();
@@ -356,27 +356,27 @@ export function createSessionModule({
         const samples = cycle.samples;
         const summary = cycle.summary ?? {};
 
-        cycleChart.data.datasets[0].data = samples.map(sample => ({
+        cycleChart.data.datasets[0].data = samples.map((sample: any) => ({
             x: sample.angleDeg,
             y: sample.cylinderPressurePa * PASCAL_TO_BAR,
             phase: sample.phase
         }));
-        cycleChart.data.datasets[1].data = samples.map(sample => ({
+        cycleChart.data.datasets[1].data = samples.map((sample: any) => ({
             x: sample.angleDeg,
             y: sample.intakePressurePa * PASCAL_TO_BAR,
             phase: sample.phase
         }));
-        cycleChart.data.datasets[2].data = samples.map(sample => ({
+        cycleChart.data.datasets[2].data = samples.map((sample: any) => ({
             x: sample.angleDeg,
             y: sample.exhaustPressurePa * PASCAL_TO_BAR,
             phase: sample.phase
         }));
-        cycleChart.data.datasets[3].data = samples.map(sample => ({
+        cycleChart.data.datasets[3].data = samples.map((sample: any) => ({
             x: sample.angleDeg,
             y: sample.intakeValveLiftM * 1000,
             phase: sample.phase
         }));
-        cycleChart.data.datasets[4].data = samples.map(sample => ({
+        cycleChart.data.datasets[4].data = samples.map((sample: any) => ({
             x: sample.angleDeg,
             y: sample.exhaustValveLiftM * 1000,
             phase: sample.phase
@@ -428,7 +428,7 @@ export function createSessionModule({
         }
     }
 
-    function uniqueSortedCycleSamples(samples) {
+    function uniqueSortedCycleSamples(samples: any) {
         const byAngle = new Map();
         for (const sample of samples ?? []) {
             if (!Number.isFinite(sample?.angleDeg)) continue;
@@ -443,7 +443,7 @@ export function createSessionModule({
      * - cycle fermé : IVC -> EVO ;
      * - pompage : EVO -> 720° puis 0° -> IVC.
      */
-    function buildPvPhaseSegments(cycle) {
+    function buildPvPhaseSegments(cycle: any) {
         const samples = uniqueSortedCycleSamples(cycle?.samples);
         if (samples.length < 2) {
             return { closedPoints: [], pumpingPoints: [] };
@@ -476,13 +476,13 @@ export function createSessionModule({
         pvChart.data.datasets[0].data = closedPoints;
         pvChart.data.datasets[1].data = pumpingPoints;
 
-        const allPoints = [...closedPoints, ...pumpingPoints];
+        const allPoints: any[] = [...closedPoints, ...pumpingPoints];
         const peakPressureBar = Math.max(
             ...allPoints.map(point => finite(point.y)),
             1
         );
         const pumpingPressureBar = Math.max(
-            ...pumpingPoints.map(point => finite(point.y)),
+            ...pumpingPoints.map((point: any) => finite(point.y)),
             1
         );
 
@@ -534,8 +534,8 @@ export function createSessionModule({
         );
     }
 
-    function telemetryToPoints(samples, key, transform = value => value) {
-        return samples.map(sample => ({
+    function telemetryToPoints(samples: any, key: any, transform = (value: any) => value) {
+        return samples.map((sample: any) => ({
             x: finite(sample.time),
             y: transform(finite(sample[key]))
         }));
@@ -595,11 +595,11 @@ export function createSessionModule({
         residualChart.update("none");
 
         const massMax = samples.reduce(
-            (maximum, sample) => Math.max(maximum, Math.abs(finite(sample.maximumMassResidualPercent))),
+            (maximum: any, sample: any) => Math.max(maximum, Math.abs(finite(sample.maximumMassResidualPercent))),
             0
         );
         const energyMax = samples.reduce(
-            (maximum, sample) => Math.max(maximum, Math.abs(finite(sample.maximumEnergyResidualPercent))),
+            (maximum: any, sample: any) => Math.max(maximum, Math.abs(finite(sample.maximumEnergyResidualPercent))),
             0
         );
 
@@ -723,11 +723,11 @@ export function createSessionModule({
                 peakPowerRpm: peakPower?.rpm ?? null,
                 pvMetrics,
                 maximumMassResidualPercent: telemetry.reduce(
-                    (maximum, sample) => Math.max(maximum, Math.abs(finite(sample.maximumMassResidualPercent))),
+                    (maximum: any, sample: any) => Math.max(maximum, Math.abs(finite(sample.maximumMassResidualPercent))),
                     0
                 ),
                 maximumEnergyResidualPercent: telemetry.reduce(
-                    (maximum, sample) => Math.max(maximum, Math.abs(finite(sample.maximumEnergyResidualPercent))),
+                    (maximum: any, sample: any) => Math.max(maximum, Math.abs(finite(sample.maximumEnergyResidualPercent))),
                     0
                 )
             },
@@ -759,15 +759,15 @@ export function createSessionModule({
         "heatReleaseRateW"
     ]);
 
-    function pickFields(source, keys) {
-        const result = {};
+    function pickFields(source: any, keys: any) {
+        const result: Record<string, any> = {};
         for (const key of keys) {
             if (source?.[key] !== undefined) result[key] = source[key];
         }
         return result;
     }
 
-    function compactReportForStorage(report) {
+    function compactReportForStorage(report: any) {
         const telemetry = Array.isArray(report.telemetry) ? report.telemetry : [];
         const stride = Math.max(Math.ceil(telemetry.length / 300), 1);
         const compactTelemetry = [];
@@ -778,7 +778,7 @@ export function createSessionModule({
         const cycle = report.cycle?.samples?.length
             ? {
                 ...report.cycle,
-                samples: report.cycle.samples.map(sample =>
+                samples: report.cycle.samples.map((sample: any) =>
                     pickFields(sample, STORED_CYCLE_SAMPLE_KEYS)
                 )
             }
@@ -802,7 +802,7 @@ export function createSessionModule({
         };
     }
 
-    function sessionTimestamp(session) {
+    function sessionTimestamp(session: any) {
         const explicit = Date.parse(session?.createdAt ?? session?.report?.generatedAt ?? "");
         if (Number.isFinite(explicit)) return explicit;
 
@@ -810,7 +810,7 @@ export function createSessionModule({
         return match ? Number(match[1]) : 0;
     }
 
-    function buildSessionLabel(report, createdAt) {
+    function buildSessionLabel(report: any, createdAt: any) {
         const date = new Date(createdAt);
         const dateLabel = Number.isFinite(date.getTime())
             ? date.toLocaleString("fr-FR", {
@@ -831,7 +831,7 @@ export function createSessionModule({
         return `Tir ${dateLabel}${values.length ? ` · ${values.join(" · ")}` : ""}`;
     }
 
-    function persistSavedSessions(sessions) {
+    function persistSavedSessions(sessions: any) {
         const ordered = [...sessions]
             .filter(session => session?.id && session?.report)
             .sort((left, right) => sessionTimestamp(right) - sessionTimestamp(left))
@@ -856,7 +856,7 @@ export function createSessionModule({
         }
     }
 
-    function saveCurrentSession(label = null) {
+    function saveCurrentSession(label: string | null = null) {
         const report = compactReportForStorage(currentSessionReport());
         const createdAt = report.generatedAt ?? new Date().toISOString();
         const id = `session-${Date.now()}`;
@@ -937,7 +937,7 @@ export function createSessionModule({
             : "Sélectionnez un tir enregistré pour le supprimer";
     }
 
-    function populateSessionSelector(preferredValue = null) {
+    function populateSessionSelector(preferredValue: string | null = null) {
         if (!ui.analysisSessionSelect) return;
 
         const currentValue = preferredValue ?? ui.analysisSessionSelect.value;
@@ -984,7 +984,7 @@ export function createSessionModule({
         updateSessionControls();
     }
 
-    function normalizeSnapshot(snapshot) {
+    function normalizeSnapshot(snapshot: any) {
         if (!snapshot) return null;
 
         if (snapshot.report) {
@@ -1019,7 +1019,7 @@ export function createSessionModule({
         };
     }
 
-    function selectSession(value) {
+    function selectSession(value: any) {
         if (value === "live") {
             liveData.mode = "live";
             liveData.snapshot = null;
@@ -1030,7 +1030,7 @@ export function createSessionModule({
             return;
         }
 
-        let snapshot = null;
+        let snapshot: any = null;
 
         if (value === "viewer-snapshot") {
             snapshot = loadViewerSnapshot();

@@ -42,8 +42,8 @@ const SNAPSHOT_KEYS = Object.freeze([
     "fuelCutActive"
 ]);
 
-function compactSample(sample) {
-    const compact = {};
+function compactSample(sample: any) {
+    const compact: Record<string, any> = {};
     for (const key of SNAPSHOT_KEYS) {
         if (sample?.[key] !== undefined) {
             compact[key] = sample[key];
@@ -52,7 +52,7 @@ function compactSample(sample) {
     return compact;
 }
 
-function safeWriteSnapshot(snapshot) {
+function safeWriteSnapshot(snapshot: any) {
     try {
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
         return true;
@@ -65,7 +65,7 @@ function safeWriteSnapshot(snapshot) {
 export default function installAnalysisSessionBridge({
                                                          motor,
                                                          linkSelector = "a[data-Analysis-link], a.command-link"
-                                                     }) {
+                                                     }: any) {
     if (!motor?.telemetry || !motor?.cycleRecorder) {
         return null;
     }
@@ -79,7 +79,7 @@ export default function installAnalysisSessionBridge({
     });
     sweep.start({ clear: true });
 
-    const unsubscribe = motor.telemetry.subscribe(sample => {
+    const unsubscribe = motor.telemetry.subscribe((sample: any) => {
         sweep.ingest(sample);
     });
 
@@ -119,7 +119,7 @@ export default function installAnalysisSessionBridge({
         return safeWriteSnapshot(createSnapshot());
     }
 
-    function handleNavigation(event) {
+    function handleNavigation(event: any) {
         const link = event.target?.closest?.(linkSelector);
         if (!link) return;
         persist();

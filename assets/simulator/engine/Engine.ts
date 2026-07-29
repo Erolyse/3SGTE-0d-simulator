@@ -45,31 +45,10 @@ import {
 const MAXIMUM_INTERNAL_SUBSTEPS_PER_UPDATE = 50000;
 const REMAINING_TIME_EPSILON = 1e-12;
 
-export interface TelemetrySampleSummary {
-    time: number;
-    sequence: number;
-}
-
-export interface TelemetryRecorderLike {
-    readonly outputRateHz: number;
-    readonly historySeconds: number;
-    readonly capacity: number;
-    readonly inputRateHz?: number;
-    readonly size: number;
-    recordSubstep(state: EngineStateData, dt: number): number;
-    getLatestSample(): TelemetrySampleSummary | null;
-}
-
-export interface CycleRecorderLike {
-    readonly enabled: boolean;
-    readonly cylinderIndex: number;
-    recordSubstep(state: EngineStateData, dt: number): unknown;
-}
-
 export interface EngineOptions {
-    telemetryRecorder?: TelemetryRecorderLike | null;
+    telemetryRecorder?: TelemetryRecorder | null;
     telemetryOptions?: ConstructorParameters<typeof TelemetryRecorder>[0];
-    cycleRecorder?: CycleRecorderLike | null;
+    cycleRecorder?: CycleRecorder | null;
     cycleRecorderOptions?: ConstructorParameters<typeof CycleRecorder>[0];
     conservationDiagnosticsStride?: number;
     angleSolverBaseStepDeg?: number;
@@ -84,8 +63,8 @@ export interface AngleResolutionConfig {
 
 export default class Engine {
     readonly state: EngineState;
-    readonly telemetry: TelemetryRecorderLike;
-    readonly cycleRecorder: CycleRecorderLike;
+    readonly telemetry: TelemetryRecorder;
+    readonly cycleRecorder: CycleRecorder;
 
     pendingSimulationTime: number;
     conservationDiagnosticsStride: number;

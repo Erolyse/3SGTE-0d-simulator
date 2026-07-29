@@ -191,12 +191,12 @@ const ANALYSIS_CHANNELS = Object.freeze([
     Object.freeze({
         key: "cumulativeAbsoluteMassResidual",
         aggregation: "last",
-        select: state => state.cumulativeAbsoluteMassResidual
+        select: (state: any) => state.cumulativeAbsoluteMassResidual
     }),
     Object.freeze({
         key: "cumulativeAbsoluteEnergyResidual",
         aggregation: "last",
-        select: state => state.cumulativeAbsoluteEnergyResidual
+        select: (state: any) => state.cumulativeAbsoluteEnergyResidual
     })
 ]);
 

@@ -28,8 +28,8 @@ import { interpolateMonotonicThresholdCrossing } from "../Cycle/CycleRecorder.js
 import { CYCLE_VALIDATION_STATUS } from "./cycle-validation.js";
 import { setText, formatNumber, escapeHtml } from "./utils.js";
 
-export function createUnitTestsModule({ liveData, ui }) {
-    function formatUnitValue(value, decimals = 6) {
+export function createUnitTestsModule({ liveData, ui }: any) {
+    function formatUnitValue(value: any, decimals = 6) {
         if (!Number.isFinite(value)) return "non fini";
         const absoluteValue = Math.abs(value);
 
@@ -45,11 +45,11 @@ export function createUnitTestsModule({ liveData, ui }) {
     }
 
     function runSubmoduleUnitTests() {
-        const rows = [];
+        const rows: any = [];
         const startedAt = performance.now();
-        const radians = degrees => degrees * Math.PI / 180;
+        const radians = (degrees: any) => degrees * Math.PI / 180;
 
-        const record = (group, name, criterion, callback) => {
+        const record = (group: any, name: any, criterion: any, callback: any) => {
             try {
                 const result = callback() ?? {};
                 if (result.pass === false) {
@@ -79,10 +79,10 @@ export function createUnitTestsModule({ liveData, ui }) {
         };
 
         const near = (
-            actual,
-            expected,
-            tolerance,
-            measured,
+            actual: any,
+            expected: any,
+            tolerance: any,
+            measured: any,
             detail = ""
         ) => ({
             pass: Number.isFinite(actual)
@@ -95,10 +95,10 @@ export function createUnitTestsModule({ liveData, ui }) {
         });
 
         const scanMaximum = (
-            startDeg,
-            endDeg,
-            stepDeg,
-            evaluator
+            startDeg: any,
+            endDeg: any,
+            stepDeg: any,
+            evaluator: any
         ) => {
             let maximumValue = Number.NEGATIVE_INFINITY;
             let maximumAngleDeg = startDeg;
@@ -797,7 +797,7 @@ export function createUnitTestsModule({ liveData, ui }) {
             }
         );
 
-        const createLossState = rpm => {
+        const createLossState = (rpm: any) => {
             const state = new Engine().state;
             state.rpm = rpm;
             state.crankAngle = 0;
@@ -895,7 +895,7 @@ export function createUnitTestsModule({ liveData, ui }) {
                     fuelCutActive: false,
                     engineBrakingActive: false
                 };
-                updateOverrunFuelCut(state);
+                updateOverrunFuelCut(state as any);
 
                 return {
                     pass: state.fuelCutActive
@@ -917,7 +917,7 @@ export function createUnitTestsModule({ liveData, ui }) {
                     fuelCutActive: true,
                     engineBrakingActive: true
                 };
-                updateOverrunFuelCut(state);
+                updateOverrunFuelCut(state as any);
 
                 return {
                     pass: !state.fuelCutActive
@@ -939,7 +939,7 @@ export function createUnitTestsModule({ liveData, ui }) {
                     fuelCutActive: true,
                     engineBrakingActive: true
                 };
-                updateOverrunFuelCut(state);
+                updateOverrunFuelCut(state as any);
 
                 return {
                     pass: !state.fuelCutActive
@@ -1084,7 +1084,7 @@ export function createUnitTestsModule({ liveData, ui }) {
                     pass: efficiency >= 0
                         && efficiency <= 1
                         && result.turbineShaftPower
-                            <= result.availableGasPower + 1e-9,
+                        <= result.availableGasPower + 1e-9,
                     measured:
                         `${formatUnitValue(efficiency * 100, 3)} %`,
                     detail: "La puissance arbre ne dépasse pas celle des gaz."
@@ -1153,9 +1153,9 @@ export function createUnitTestsModule({ liveData, ui }) {
                 return {
                     pass: substep.dt <= MAX_INTERNAL_TIME_STEP
                         && substep.predictedAngleAdvanceDeg
-                            <= substep.targetAngleStepDeg + 1e-9
+                        <= substep.targetAngleStepDeg + 1e-9
                         && substep.targetAngleStepDeg
-                            <= BASE_CRANK_ANGLE_STEP_DEG,
+                        <= BASE_CRANK_ANGLE_STEP_DEG,
                     measured:
                         `${formatUnitValue(
                             substep.predictedAngleAdvanceDeg,
@@ -1237,7 +1237,7 @@ export function createUnitTestsModule({ liveData, ui }) {
             }
         );
 
-        const passed = rows.filter(row => row.status === "pass").length;
+        const passed = rows.filter((row: any) => row.status === "pass").length;
         const failed = rows.length - passed;
         const report = {
             generatedAt: new Date().toISOString(),
@@ -1262,7 +1262,7 @@ export function createUnitTestsModule({ liveData, ui }) {
         return report;
     }
 
-    function renderSubmoduleUnitTestReport(report = null) {
+    function renderSubmoduleUnitTestReport(report: any = null) {
         const panel = ui.submoduleUnitTestGlobalStatus
             ?.closest(".submodule-unit-tests");
         const status = report?.status ?? CYCLE_VALIDATION_STATUS.UNAVAILABLE;
@@ -1313,14 +1313,14 @@ export function createUnitTestsModule({ liveData, ui }) {
         setText(ui.submoduleUnitTestConclusion, report.conclusion);
 
         if (ui.submoduleUnitTestTableBody) {
-            ui.submoduleUnitTestTableBody.innerHTML = report.rows.map(row => `
+            ui.submoduleUnitTestTableBody.innerHTML = report.rows.map((row: any) => `
                 <tr data-test-status="${escapeHtml(row.status)}">
                     <td>${escapeHtml(row.group)}</td>
                     <td>
                         <strong>${escapeHtml(row.name)}</strong>
                         ${row.detail
-                            ? `<span>${escapeHtml(row.detail)}</span>`
-                            : ""}
+                ? `<span>${escapeHtml(row.detail)}</span>`
+                : ""}
                     </td>
                     <td class="cycle-validation-status">
                         ${row.status === "pass" ? "Validé" : "Échec"}
@@ -1336,10 +1336,10 @@ export function createUnitTestsModule({ liveData, ui }) {
         }
     }
 
-    function submoduleUnitTestReportToCsv(report) {
+    function submoduleUnitTestReportToCsv(report: any) {
         if (!report?.rows?.length) return "";
 
-        const escapeCsv = value =>
+        const escapeCsv = (value: any) =>
             `"${String(value ?? "").replaceAll('"', '""')}"`;
 
         return [
@@ -1351,7 +1351,7 @@ export function createUnitTestsModule({ liveData, ui }) {
                 "critere",
                 "detail"
             ].map(escapeCsv).join(";"),
-            ...report.rows.map(row => [
+            ...report.rows.map((row: any) => [
                 row.group,
                 row.name,
                 row.status,

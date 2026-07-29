@@ -74,7 +74,7 @@ export interface TelemetrySample {
     engineRunning?: boolean;
     fuelCutActive?: boolean;
     revLimiterActive?: boolean;
-    [key: string]: number | boolean | string | undefined;
+    [key: string]: number | boolean | string | null | undefined;
 }
 
 export interface TelemetryRecorderLike {

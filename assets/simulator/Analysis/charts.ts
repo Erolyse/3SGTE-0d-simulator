@@ -12,7 +12,7 @@ import { DYNO_MODES } from "../Dyno/Dyno.js";
 import { ENGINE_OPERATING_STATES } from "../EngineControl/EngineControl.js";
 import { getCylinderVolume } from "../Geometry/Geometry.js";
 
-export function createChartsModule({ cycleValidator, liveData, ui }) {
+export function createChartsModule({ cycleValidator, liveData, ui }: any) {
     const Chart = globalThis.Chart;
     if (typeof Chart !== "function") {
         throw new Error("Chart.js doit être chargé avant Analysis.js.");
@@ -61,7 +61,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
 
     const engineeringGuidesPlugin = {
         id: "engineeringGuides",
-        afterDraw(chart, _args, options) {
+        afterDraw(chart: any, _args: any, options: any) {
             const lines = options?.lines;
             if (!Array.isArray(lines) || lines.length === 0) {
                 return;
@@ -101,7 +101,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
 
     const engineeringMarkersPlugin = {
         id: "engineeringMarkers",
-        afterDraw(chart, _args, options) {
+        afterDraw(chart: any, _args: any, options: any) {
             const items = options?.items;
             if (!Array.isArray(items) || items.length === 0) {
                 return;
@@ -182,7 +182,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         };
     }
 
-    function linearScale(title, position = "left", options = {}) {
+    function linearScale(title: any, position = "left", options = {}) {
         return {
             type: "linear",
             position,
@@ -207,7 +207,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         };
     }
 
-    function lineDataset(label, color, yAxisID, extra = {}) {
+    function lineDataset(label: any, color: any, yAxisID: any, extra = {}) {
         return {
             label,
             data: [],
@@ -263,13 +263,13 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
                 tooltip: {
                     ...basePlugins().tooltip,
                     callbacks: {
-                        title(items) {
+                        title(items: any) {
                             const rpm = items[0]?.parsed?.x;
                             return Number.isFinite(rpm)
                                 ? `${formatNumber(rpm)} tr/min`
                                 : "";
                         },
-                        label(context) {
+                        label(context: any) {
                             const unit = context.dataset.yAxisID === "yPower"
                                 ? "ch"
                                 : "N·m";
@@ -318,12 +318,12 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
                 tooltip: {
                     ...basePlugins().tooltip,
                     callbacks: {
-                        title(items) {
+                        title(items: any) {
                             const point = items[0]?.raw;
                             if (!point) return "";
                             return `${formatNumber(point.x, 1)}° CA · ${point.phase ?? "cycle"}`;
                         },
-                        label(context) {
+                        label(context: any) {
                             const axis = context.dataset.yAxisID;
                             const unit = axis === "yLift" ? "mm" : "bar abs";
                             return `${context.dataset.label} : ${formatNumber(context.parsed.y, axis === "yLift" ? 2 : 2)} ${unit}`;
@@ -393,13 +393,13 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
                 tooltip: {
                     ...basePlugins().tooltip,
                     callbacks: {
-                        title(items) {
+                        title(items: any) {
                             const point = items[0]?.raw;
                             return point
                                 ? `${formatNumber(point.angleDeg, 1)}° CA · ${point.phase ?? "cycle"}`
                                 : "";
                         },
-                        label(context) {
+                        label(context: any) {
                             return `P = ${formatNumber(context.parsed.y, 2)} bar abs · V = ${formatNumber(context.parsed.x, 1)} cm³`;
                         }
                     }
@@ -423,7 +423,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
                     ticks: {
                         color: "#818b8f",
                         font: { family: '"JetBrains Mono", monospace', size: 10 },
-                        callback(value) {
+                        callback(value: any) {
                             return [0.2, 0.5, 1, 2, 5, 10, 20, 50, 100].includes(Number(value))
                                 ? value
                                 : "";
@@ -457,10 +457,10 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
                 tooltip: {
                     ...basePlugins().tooltip,
                     callbacks: {
-                        title(items) {
+                        title(items: any) {
                             return `${formatNumber(items[0]?.parsed?.x, 2)} s`;
                         },
-                        label(context) {
+                        label(context: any) {
                             const axis = context.dataset.yAxisID;
                             const unit = axis === "yTurbo"
                                 ? "krpm"
@@ -513,10 +513,10 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
                 tooltip: {
                     ...basePlugins().tooltip,
                     callbacks: {
-                        title(items) {
+                        title(items: any) {
                             return `${formatNumber(items[0]?.parsed?.x, 2)} s`;
                         },
-                        label(context) {
+                        label(context: any) {
                             return `${context.dataset.label} : ${Number(context.parsed.y).toExponential(3)}`;
                         }
                     }
@@ -531,7 +531,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
                     ticks: {
                         color: "#818b8f",
                         font: { family: '"JetBrains Mono", monospace', size: 10 },
-                        callback(value) {
+                        callback(value: any) {
                             return Number(value).toExponential(0);
                         }
                     }
@@ -543,7 +543,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
                     ticks: {
                         color: "#818b8f",
                         font: { family: '"JetBrains Mono", monospace', size: 10 },
-                        callback(value) {
+                        callback(value: any) {
                             return Number(value).toExponential(0);
                         }
                     }
@@ -556,11 +556,11 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
 
     let synchronizingCycleCursor = false;
 
-    function nearestDatasetIndexByAngle(chart, angleDeg) {
-        let best = null;
+    function nearestDatasetIndexByAngle(chart: any, angleDeg: any) {
+        let best: any = null;
 
-        chart.data.datasets.forEach((dataset, datasetIndex) => {
-            dataset.data.forEach((point, index) => {
+        chart.data.datasets.forEach((dataset: any, datasetIndex: any) => {
+            dataset.data.forEach((point: any, index: any) => {
                 const angle = Number.isFinite(point?.angleDeg)
                     ? point.angleDeg
                     : point?.x;
@@ -575,7 +575,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         return best;
     }
 
-    function synchronizeCycleCursor(sourceChart, angleDeg) {
+    function synchronizeCycleCursor(sourceChart: any, angleDeg: any) {
         if (synchronizingCycleCursor || !Number.isFinite(angleDeg)) return;
         synchronizingCycleCursor = true;
 
@@ -586,30 +586,30 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         for (const target of targets) {
             const nearest = nearestDatasetIndexByAngle(target, angleDeg);
             if (!nearest) continue;
-            target.setActiveElements([nearest]);
+            target.setActiveElements?.([nearest]);
             const point = target.data.datasets[nearest.datasetIndex]?.data?.[nearest.index];
             target.tooltip?.setActiveElements?.(
                 [nearest],
                 {
-                    x: target.scales.x.getPixelForValue(point?.x ?? 0),
-                    y: target.scales[target.data.datasets[nearest.datasetIndex]?.yAxisID ?? "y"]
-                        ?.getPixelForValue(point?.y ?? 0) ?? 0
-                }
-            );
-            target.draw();
+                    x: target.scales.x?.getPixelForValue(point?.x ?? 0) ?? 0,
+                    y: target.scales[(target.data.datasets[nearest.datasetIndex] as any)?.yAxisID ?? "y"]
+        ?.getPixelForValue(point?.y ?? 0) ?? 0
+        }
+        );
+            target.draw?.();
         }
 
         synchronizingCycleCursor = false;
     }
 
-    cycleChart.options.onHover = (_event, elements, chart) => {
+    cycleChart.options.onHover = (_event: any, elements: any, chart: any) => {
         const element = elements?.[0];
         if (!element) return;
         const point = chart.data.datasets[element.datasetIndex]?.data?.[element.index];
         synchronizeCycleCursor(chart, point?.x);
     };
 
-    pvChart.options.onHover = (_event, elements, chart) => {
+    pvChart.options.onHover = (_event: any, elements: any, chart: any) => {
         const element = elements?.[0];
         if (!element) return;
         const point = chart.data.datasets[element.datasetIndex]?.data?.[element.index];
@@ -634,7 +634,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         }
     }
 
-    function findExtreme(points, key, mode = "max") {
+    function findExtreme(points: any, key: any, mode = "max") {
         if (!Array.isArray(points) || points.length === 0) return null;
 
         return points.reduce((best, point) => {
@@ -647,7 +647,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         }, null);
     }
 
-    function deriveDynoMarkers(points) {
+    function deriveDynoMarkers(points: any) {
         if (!Array.isArray(points) || points.length < 2) return [];
 
         const peakTorque = findExtreme(points, "torque");
@@ -670,12 +670,12 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         setHidden(ui.dynoEmptyState, hasPoints);
 
         const datasets = dynoChart.data.datasets;
-        datasets[0].data = points.map(point => ({ x: point.rpm, y: point.torque }));
-        datasets[1].data = points.map(point => ({ x: point.rpm, y: point.power / HORSEPOWER_WATTS }));
-        datasets[2].data = points.map(point => ({ x: point.rpm, y: point.closedCycleIndicatedTorque }));
-        datasets[3].data = points.map(point => ({ x: point.rpm, y: point.pumpingTorque }));
-        datasets[4].data = points.map(point => ({ x: point.rpm, y: -Math.abs(point.mechanicalFrictionTorque) }));
-        datasets[5].data = points.map(point => ({ x: point.rpm, y: -Math.abs(point.accessoryTorque) }));
+        datasets[0].data = points.map((point: any) => ({ x: point.rpm, y: point.torque }));
+        datasets[1].data = points.map((point: any) => ({ x: point.rpm, y: point.power / HORSEPOWER_WATTS }));
+        datasets[2].data = points.map((point: any) => ({ x: point.rpm, y: point.closedCycleIndicatedTorque }));
+        datasets[3].data = points.map((point: any) => ({ x: point.rpm, y: point.pumpingTorque }));
+        datasets[4].data = points.map((point: any) => ({ x: point.rpm, y: -Math.abs(point.mechanicalFrictionTorque) }));
+        datasets[5].data = points.map((point: any) => ({ x: point.rpm, y: -Math.abs(point.accessoryTorque) }));
         dynoChart.options.plugins.engineeringMarkers.items = deriveDynoMarkers(points);
         dynoChart.update("none");
 
@@ -710,7 +710,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         setText(ui.validationPeakBoost, `${formatNumber(peakBoost?.boost, 2)} bar relatif`);
     }
 
-    function cycleEventMarkers(cycle) {
+    function cycleEventMarkers(cycle: any) {
         const events = cycle?.events;
         if (!events) return [];
 
@@ -727,7 +727,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         ];
     }
 
-    function meanSampleValue(samples, key) {
+    function meanSampleValue(samples: any, key: any) {
         if (!Array.isArray(samples) || samples.length === 0) return 0;
         let sum = 0;
         let count = 0;
@@ -741,7 +741,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         return count > 0 ? sum / count : 0;
     }
 
-    function normalizedCycleAngleDeg(value) {
+    function normalizedCycleAngleDeg(value: any) {
         const angle = finite(value);
         if (Math.abs(angle - FULL_CYCLE_DEG) <= 1e-6) {
             return FULL_CYCLE_DEG;
@@ -749,7 +749,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         return ((angle % FULL_CYCLE_DEG) + FULL_CYCLE_DEG) % FULL_CYCLE_DEG;
     }
 
-    function pvVolumeM3(sample) {
+    function pvVolumeM3(sample: any) {
         const angleDeg = normalizedCycleAngleDeg(sample?.angleDeg);
         // Le volume est imposé par la géométrie bielle-manivelle. Le recalculer
         // depuis l'angle supprime tout déphasage entre un point décimé et l'état
@@ -757,7 +757,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         return getCylinderVolume((angleDeg % 360) * DEG_TO_RAD);
     }
 
-    function pvPointFromSample(sample) {
+    function pvPointFromSample(sample: any) {
         return {
             x: pvVolumeM3(sample) * M3_TO_CM3,
             y: Math.max(finite(sample?.cylinderPressurePa) * PASCAL_TO_BAR, 0.05),
@@ -766,14 +766,14 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         };
     }
 
-    function formatCrankEvent(angleDeg, referenceDeg = 360) {
+    function formatCrankEvent(angleDeg: any, referenceDeg = 360) {
         if (!Number.isFinite(angleDeg)) return "—";
         const delta = angleDeg - referenceDeg;
         if (Math.abs(delta) < 0.05) return "PMH";
         return `${formatNumber(Math.abs(delta), 1)}° ${delta < 0 ? "avant" : "après"} PMH`;
     }
 
-    function formatCycleAngle(angleDeg) {
+    function formatCycleAngle(angleDeg: any) {
         return Number.isFinite(angleDeg)
             ? `${formatNumber(angleDeg, 1)}° CA`
             : "—";
@@ -800,7 +800,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         if (panel) panel.dataset.validationStatus = "unavailable";
     }
 
-    function renderCycleValidationReport(report) {
+    function renderCycleValidationReport(report: any) {
         if (!report) {
             clearCycleValidationReport();
             return;
@@ -888,7 +888,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         if (panel) panel.dataset.validationStatus = "unavailable";
     }
 
-    function multiPointResidualLabel(point) {
+    function multiPointResidualLabel(point: any) {
         const mass = Number.isFinite(point?.maximumMassResidualPercent)
             ? point.maximumMassResidualPercent.toExponential(1)
             : "—";
@@ -898,7 +898,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         return `${mass} / ${energy} %`;
     }
 
-    function renderMultiPointValidationReport(report) {
+    function renderMultiPointValidationReport(report: any) {
         if (!report?.points?.length) {
             clearMultiPointValidationReport();
             return;
@@ -934,7 +934,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
 
         if (!ui.multiPointValidationTableBody) return;
 
-        ui.multiPointValidationTableBody.innerHTML = report.points.map(point => {
+        ui.multiPointValidationTableBody.innerHTML = report.points.map((point: any) => {
             const rpmMeasured = Number.isFinite(point.meanRpm)
                 ? `${formatNumber(point.meanRpm)} tr/min`
                 : "—";
@@ -979,7 +979,7 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
         }).join("");
     }
 
-    function multiPointValidationToCsv(report) {
+    function multiPointValidationToCsv(report: any) {
         const columns = [
             "point",
             "description",
@@ -1009,12 +1009,12 @@ export function createChartsModule({ cycleValidator, liveData, ui }) {
             "erreur"
         ];
 
-        const csvCell = value => {
+        const csvCell = (value: any) => {
             const text = value === null || value === undefined ? "" : String(value);
             return `"${text.replaceAll('"', '""')}"`;
         };
 
-        const rows = (report?.points ?? []).map(point => [
+        const rows = (report?.points ?? []).map((point: any) => [
             point.label,
             point.description,
             validationStatusLabel(point.status),

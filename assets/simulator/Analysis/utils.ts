@@ -2,21 +2,21 @@ import { DYNO_MODES } from "../Dyno/Dyno.js";
 import { ENGINE_OPERATING_STATES } from "../EngineControl/EngineControl.js";
 import { CYCLE_VALIDATION_STATUS } from "./cycle-validation.js";
 
-function finite(value, fallback = 0) {
+function finite(value: any, fallback = 0) {
     return Number.isFinite(value) ? value : fallback;
 }
 
-function clamp(value, minimum, maximum) {
+function clamp(value: any, minimum: any, maximum: any) {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function setText(element, text) {
+function setText(element: any, text: any) {
     if (element && element.textContent !== text) {
         element.textContent = text;
     }
 }
 
-function setHidden(element, hidden) {
+function setHidden(element: any, hidden: any) {
     if (!element) return;
 
     const shouldHide = Boolean(hidden);
@@ -25,7 +25,7 @@ function setHidden(element, hidden) {
     element.style.display = shouldHide ? "none" : "grid";
 }
 
-function formatNumber(value, decimals = 0) {
+function formatNumber(value: any, decimals = 0) {
     if (!Number.isFinite(value)) {
         return "—";
     }
@@ -36,7 +36,7 @@ function formatNumber(value, decimals = 0) {
     }).format(value);
 }
 
-function formatScientific(value, decimals = 1) {
+function formatScientific(value: any, decimals = 1) {
     if (!Number.isFinite(value)) {
         return "—";
     }
@@ -48,7 +48,7 @@ function formatScientific(value, decimals = 1) {
     return value.toExponential(decimals).replace("e", " × 10^");
 }
 
-function downloadText(filename, content, mimeType = "text/plain") {
+function downloadText(filename: any, content: any, mimeType = "text/plain") {
     const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -61,7 +61,7 @@ function downloadText(filename, content, mimeType = "text/plain") {
     URL.revokeObjectURL(url);
 }
 
-function dynoModeLabel(mode) {
+function dynoModeLabel(mode: any) {
     switch (mode) {
         case DYNO_MODES.BRAKED:
             return "Freiné";
@@ -73,7 +73,7 @@ function dynoModeLabel(mode) {
     }
 }
 
-function engineStatusLabel(state) {
+function engineStatusLabel(state: any) {
     switch (state.engineOperatingState) {
         case ENGINE_OPERATING_STATES.CRANKING:
             return "Démarrage";
@@ -89,7 +89,7 @@ function engineStatusLabel(state) {
     }
 }
 
-function validationStatusLabel(status) {
+function validationStatusLabel(status: any) {
     switch (status) {
         case CYCLE_VALIDATION_STATUS.PASS:
             return "Validé";
@@ -102,7 +102,7 @@ function validationStatusLabel(status) {
     }
 }
 
-function validationStatusRank(status) {
+function validationStatusRank(status: any) {
     switch (status) {
         case CYCLE_VALIDATION_STATUS.FAIL:
             return 0;
@@ -115,7 +115,7 @@ function validationStatusRank(status) {
     }
 }
 
-function summarizeValidationStatuses(statuses) {
+function summarizeValidationStatuses(statuses: any) {
     const counts = {
         pass: 0,
         warning: 0,
@@ -124,7 +124,7 @@ function summarizeValidationStatuses(statuses) {
     };
 
     for (const status of statuses ?? []) {
-        if (counts[status] !== undefined) counts[status]++;
+        if (status in counts) counts[status as keyof typeof counts]++;
     }
 
     const status = counts.fail > 0
@@ -138,14 +138,14 @@ function summarizeValidationStatuses(statuses) {
     return { status, counts };
 }
 
-function classifyUpperStatus(value, passMaximum, warningMaximum) {
+function classifyUpperStatus(value: any, passMaximum: any, warningMaximum: any) {
     if (!Number.isFinite(value)) return CYCLE_VALIDATION_STATUS.UNAVAILABLE;
     if (value <= passMaximum) return CYCLE_VALIDATION_STATUS.PASS;
     if (value <= warningMaximum) return CYCLE_VALIDATION_STATUS.WARNING;
     return CYCLE_VALIDATION_STATUS.FAIL;
 }
 
-function escapeHtml(value) {
+function escapeHtml(value: any) {
     return String(value ?? "")
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")

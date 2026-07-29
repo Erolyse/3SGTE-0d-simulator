@@ -12,8 +12,8 @@ import { createAnalysisEngine } from "./engine-factory.js";
 import { ReferenceRunCancelledError } from "./errors.js";
 
 export function createTransientCampaignModule({
-    liveData, ui, restoreStateSnapshot, setReferenceRunUi, simulateDeterministically
-}) {
+                                                  liveData, ui, restoreStateSnapshot, setReferenceRunUi, simulateDeterministically
+                                              }: any) {
     function createTransientEngine() {
         return createAnalysisEngine({
             baseAngleStepDeg: 0.5,
@@ -26,41 +26,41 @@ export function createTransientCampaignModule({
         });
     }
 
-    function telemetryFiniteValues(samples, key, {
+    function telemetryFiniteValues(samples: any, key: any, {
         minimumTime = Number.NEGATIVE_INFINITY,
         maximumTime = Number.POSITIVE_INFINITY
     } = {}) {
         return (samples ?? [])
-            .filter(sample =>
+            .filter((sample: any) =>
                 finite(sample?.time, Number.NEGATIVE_INFINITY) >= minimumTime
                 && finite(sample?.time, Number.POSITIVE_INFINITY) <= maximumTime
             )
-            .map(sample => sample?.[key])
+            .map((sample: any) => sample?.[key])
             .filter(Number.isFinite);
     }
 
-    function telemetryMaximumValue(samples, key) {
+    function telemetryMaximumValue(samples: any, key: any) {
         const values = telemetryFiniteValues(samples, key);
         return values.length ? Math.max(...values) : NaN;
     }
 
-    function telemetryMinimumValue(samples, key) {
+    function telemetryMinimumValue(samples: any, key: any) {
         const values = telemetryFiniteValues(samples, key);
         return values.length ? Math.min(...values) : NaN;
     }
 
-    function telemetryMeanLastSeconds(samples, key, durationSeconds) {
+    function telemetryMeanLastSeconds(samples: any, key: any, durationSeconds: any) {
         const lastTime = finite(samples?.at(-1)?.time, NaN);
         if (!Number.isFinite(lastTime)) return NaN;
         const values = telemetryFiniteValues(samples, key, {
             minimumTime: lastTime - Math.max(durationSeconds, 0)
         });
         return values.length
-            ? values.reduce((sum, value) => sum + value, 0) / values.length
+            ? values.reduce((sum: any, value: any) => sum + value, 0) / values.length
             : NaN;
     }
 
-    function thresholdCrossingTime(samples, key, threshold, {
+    function thresholdCrossingTime(samples: any, key: any, threshold: any, {
         direction = "up",
         minimumTime = 0
     } = {}) {
@@ -75,7 +75,7 @@ export function createTransientCampaignModule({
         return NaN;
     }
 
-    function booleanActivationTime(samples, key, minimumTime = 0) {
+    function booleanActivationTime(samples: any, key: any, minimumTime = 0) {
         for (const sample of samples ?? []) {
             if (finite(sample?.time, -Infinity) < minimumTime) continue;
             if (Boolean(sample?.[key])) return sample.time;
@@ -84,16 +84,16 @@ export function createTransientCampaignModule({
     }
 
     function transientCheck({
-        id,
-        scenario,
-        label,
-        status,
-        measured,
-        expected,
-        value = null,
-        unit = "",
-        detail = ""
-    }) {
+                                id,
+                                scenario,
+                                label,
+                                status,
+                                measured,
+                                expected,
+                                value = null,
+                                unit = "",
+                                detail = ""
+                            }: any) {
         return {
             id,
             scenario,
@@ -109,16 +109,16 @@ export function createTransientCampaignModule({
     }
 
     function upperTransientCheck({
-        id,
-        scenario,
-        label,
-        value,
-        pass,
-        warning,
-        unit,
-        digits = 3,
-        detail = ""
-    }) {
+                                     id,
+                                     scenario,
+                                     label,
+                                     value,
+                                     pass,
+                                     warning,
+                                     unit,
+                                     digits = 3,
+                                     detail = ""
+                                 }: any) {
         return transientCheck({
             id,
             scenario,
@@ -137,16 +137,16 @@ export function createTransientCampaignModule({
     }
 
     function lowerTransientCheck({
-        id,
-        scenario,
-        label,
-        value,
-        pass,
-        warning,
-        unit,
-        digits = 3,
-        detail = ""
-    }) {
+                                     id,
+                                     scenario,
+                                     label,
+                                     value,
+                                     pass,
+                                     warning,
+                                     unit,
+                                     digits = 3,
+                                     detail = ""
+                                 }: any) {
         const status = !Number.isFinite(value)
             ? CYCLE_VALIDATION_STATUS.UNAVAILABLE
             : value >= pass
@@ -172,14 +172,14 @@ export function createTransientCampaignModule({
     }
 
     function booleanTransientCheck({
-        id,
-        scenario,
-        label,
-        pass,
-        measured,
-        expected,
-        detail = ""
-    }) {
+                                       id,
+                                       scenario,
+                                       label,
+                                       pass,
+                                       measured,
+                                       expected,
+                                       detail = ""
+                                   }: any) {
         return transientCheck({
             id,
             scenario,
@@ -195,14 +195,14 @@ export function createTransientCampaignModule({
     }
 
     function scenarioFromChecks({
-        id,
-        label,
-        description,
-        metrics,
-        checks
-    }) {
+                                    id,
+                                    label,
+                                    description,
+                                    metrics,
+                                    checks
+                                }: any) {
         const summary = summarizeValidationStatuses(
-            checks.map(check => check.status)
+            checks.map((check: any) => check.status)
         );
         if (summary.status === CYCLE_VALIDATION_STATUS.PASS
             && summary.counts.unavailable > 0) {
@@ -219,7 +219,7 @@ export function createTransientCampaignModule({
         };
     }
 
-    function failedTransientScenario(id, label, description, error) {
+    function failedTransientScenario(id: any, label: any, description: any, error: any) {
         const message = error?.message ?? String(error ?? "Données indisponibles");
         return scenarioFromChecks({
             id,
@@ -238,7 +238,7 @@ export function createTransientCampaignModule({
         });
     }
 
-    function analyzeSpoolTransient(samples) {
+    function analyzeSpoolTransient(samples: any) {
         const scenario = "Montée en charge et spool à 3 500 tr/min";
         const startTime = thresholdCrossingTime(
             samples,
@@ -358,7 +358,7 @@ export function createTransientCampaignModule({
         });
     }
 
-    function analyzeWastegateTransient(regulationSamples, causalSamples) {
+    function analyzeWastegateTransient(regulationSamples: any, causalSamples: any) {
         const scenario = "Ouverture causale et régulation de wastegate";
 
         const triggerSamples = Array.isArray(causalSamples)
@@ -372,7 +372,7 @@ export function createTransientCampaignModule({
         const initialBoostBar = firstTriggerSample?.boost;
         const initiallyClosed = Number.isFinite(initialWastegatePosition)
             && initialWastegatePosition
-                <= TRANSIENT_PROTOCOL.wastegateInitialClosedMaximum;
+            <= TRANSIENT_PROTOCOL.wastegateInitialClosedMaximum;
 
         // La causalité est mesurée sur la rampe pleine charge à 3 500 tr/min :
         // elle commence depuis l'état de base, avec wastegate fermée. La capacité
@@ -388,7 +388,7 @@ export function createTransientCampaignModule({
             TRANSIENT_PROTOCOL.wastegateOpenThreshold
         );
         const rawResponseTime = Number.isFinite(boostCrackTime)
-            && Number.isFinite(wastegateOpenTime)
+        && Number.isFinite(wastegateOpenTime)
             ? wastegateOpenTime - boostCrackTime
             : NaN;
         const causalOrderValid = initiallyClosed
@@ -514,10 +514,10 @@ export function createTransientCampaignModule({
         });
     }
 
-    async function runLiftOffAndReapplicationTransient(seedState, {
+    async function runLiftOffAndReapplicationTransient(seedState: any, {
         progressStart,
         progressEnd
-    }) {
+    }: any) {
         if (!seedState) {
             throw new Error("État stabilisé à 4 000 tr/min indisponible.");
         }
@@ -528,7 +528,7 @@ export function createTransientCampaignModule({
         engine.state.dynoTargetRpm = 4000;
         engine.state.dynoRoadLoadEnabled = false;
 
-        const liftSamples = [];
+        const liftSamples: any = [];
         const unsubscribeLift = engine.telemetry.subscribe(sample => {
             liftSamples.push(sample);
         });
@@ -537,7 +537,7 @@ export function createTransientCampaignModule({
 
         await simulateDeterministically(engine, {
             maximumSeconds: TRANSIENT_PROTOCOL.liftOffSeconds,
-            beforeStep: ({ state }) => {
+            beforeStep: ({ state }: any) => {
                 state.dynoMode = DYNO_MODES.RPM_HOLD;
                 state.dynoTargetRpm = 4000;
                 state.dynoRoadLoadEnabled = false;
@@ -545,7 +545,7 @@ export function createTransientCampaignModule({
             },
             progressStart,
             progressEnd: progressStart + (progressEnd - progressStart) * 0.42,
-            onProgress: progress => setReferenceRunUi({
+            onProgress: (progress: any) => setReferenceRunUi({
                 phase: "Transitoire — lever de pied",
                 progressPercent: progress,
                 message: `Lever de pied à 4 000 tr/min · bypass ${formatNumber(engine.state.compressorBypassValvePosition * 100, 0)} % · boost ${formatNumber(engine.state.boost, 2)} bar`
@@ -582,7 +582,7 @@ export function createTransientCampaignModule({
         );
         const turboSpeedReductionPercent = turboRpmBeforeLift > 1e-9
             ? Math.max(turboRpmBeforeLift - finalTurboRpm, 0)
-                / turboRpmBeforeLift * 100
+            / turboRpmBeforeLift * 100
             : NaN;
         const maximumMassResidualPercent = telemetryMaximumValue(
             liftSamples,
@@ -696,27 +696,27 @@ export function createTransientCampaignModule({
         });
 
         engine.telemetry.clear?.({ resetTime: true });
-        const reapplicationSamples = [];
+        const reapplicationSamples: any = [];
         const unsubscribeReapplication = engine.telemetry.subscribe(sample => {
             reapplicationSamples.push(sample);
         });
 
         await simulateDeterministically(engine, {
             maximumSeconds: TRANSIENT_PROTOCOL.reapplicationSeconds,
-            beforeStep: ({ state, elapsedSeconds }) => {
+            beforeStep: ({ state, elapsedSeconds }: any) => {
                 state.dynoMode = DYNO_MODES.RPM_HOLD;
                 state.dynoTargetRpm = 4000;
                 state.dynoRoadLoadEnabled = false;
                 state.throttle = clamp(
                     elapsedSeconds
-                        / TRANSIENT_PROTOCOL.reapplicationRampSeconds,
+                    / TRANSIENT_PROTOCOL.reapplicationRampSeconds,
                     0,
                     1
                 );
             },
             progressStart: progressStart + (progressEnd - progressStart) * 0.42,
             progressEnd,
-            onProgress: progress => setReferenceRunUi({
+            onProgress: (progress: any) => setReferenceRunUi({
                 phase: "Transitoire — reprise de charge",
                 progressPercent: progress,
                 message: `Reprise de charge · bypass ${formatNumber(engine.state.compressorBypassValvePosition * 100, 0)} % · boost ${formatNumber(engine.state.boost, 2)} bar`
@@ -800,10 +800,10 @@ export function createTransientCampaignModule({
         return [liftScenario, reapplicationScenario];
     }
 
-    async function runRevLimiterTransient(seedState, {
+    async function runRevLimiterTransient(seedState: any, {
         progressStart,
         progressEnd
-    }) {
+    }: any) {
         if (!seedState) {
             throw new Error("État stabilisé haut régime indisponible.");
         }
@@ -815,7 +815,7 @@ export function createTransientCampaignModule({
         engine.state.dynoRoadLoadEnabled = false;
         engine.state.throttle = 1;
 
-        const samples = [];
+        const samples: any = [];
         engine.telemetry.subscribe(sample => samples.push(sample));
         const initialEventCount = finite(engine.state.revLimiterEventCount);
         let activationTime = NaN;
@@ -826,12 +826,12 @@ export function createTransientCampaignModule({
 
         await simulateDeterministically(engine, {
             maximumSeconds: TRANSIENT_PROTOCOL.revLimiterMaximumSeconds,
-            beforeStep: ({ state }) => {
+            beforeStep: ({ state }: any) => {
                 state.dynoMode = DYNO_MODES.INERTIA;
                 state.dynoRoadLoadEnabled = false;
                 state.throttle = 1;
             },
-            afterStep: ({ state, elapsedSeconds }) => {
+            afterStep: ({ state, elapsedSeconds }: any) => {
                 maximumRpm = Math.max(maximumRpm, finite(state.rpm));
                 if (!Number.isFinite(activationTime)
                     && state.revLimiterActive) {
@@ -839,7 +839,7 @@ export function createTransientCampaignModule({
                 }
                 if (!Number.isFinite(injectionCutTime)
                     && Array.isArray(state.cylinderFuelEnabled)
-                    && state.cylinderFuelEnabled.every(enabled => !enabled)) {
+                    && state.cylinderFuelEnabled.every((enabled: any) => !enabled)) {
                     injectionCutTime = elapsedSeconds;
                 }
                 if (Number.isFinite(activationTime)
@@ -853,7 +853,7 @@ export function createTransientCampaignModule({
             stopWhen: () => Number.isFinite(resumeTime),
             progressStart,
             progressEnd,
-            onProgress: progress => setReferenceRunUi({
+            onProgress: (progress: any) => setReferenceRunUi({
                 phase: "Transitoire — rupteur",
                 progressPercent: progress,
                 message: `Rupteur · ${formatNumber(engine.state.rpm)} tr/min · coupure ${engine.state.revLimiterActive ? "active" : "libre"}`
@@ -973,7 +973,7 @@ export function createTransientCampaignModule({
         });
     }
 
-    async function runTransientValidationCampaign(artifacts, {
+    async function runTransientValidationCampaign(artifacts: any, {
         progressStart = 88,
         progressEnd = 99
     } = {}) {
@@ -1069,7 +1069,7 @@ export function createTransientCampaignModule({
         try {
             scenarios.push(await runRevLimiterTransient(
                 stateByPointId[TRANSIENT_PROTOCOL.revLimiterPointId]
-                    ?? stateByPointId[TRANSIENT_PROTOCOL.wastegatePointId],
+                ?? stateByPointId[TRANSIENT_PROTOCOL.wastegatePointId],
                 {
                     progressStart: progressStart
                         + (progressEnd - progressStart) * 0.72,
@@ -1117,7 +1117,7 @@ export function createTransientCampaignModule({
                 liftOffSeconds: TRANSIENT_PROTOCOL.liftOffSeconds,
                 reapplicationSeconds: TRANSIENT_PROTOCOL.reapplicationSeconds,
                 revLimiterMaximumSeconds:
-                    TRANSIENT_PROTOCOL.revLimiterMaximumSeconds
+                TRANSIENT_PROTOCOL.revLimiterMaximumSeconds
             },
             conclusion
         };
@@ -1151,7 +1151,7 @@ export function createTransientCampaignModule({
         if (panel) panel.dataset.validationStatus = "unavailable";
     }
 
-    function renderTransientValidationReport(report = null) {
+    function renderTransientValidationReport(report: any = null) {
         if (!report) {
             clearTransientValidationReport();
             return;
@@ -1189,19 +1189,19 @@ export function createTransientCampaignModule({
 
         if (ui.transientValidationTableBody) {
             ui.transientValidationTableBody.innerHTML = report.scenarios
-                .flatMap(scenario => scenario.checks.map((check, index) => `
+                .flatMap((scenario: any) => scenario.checks.map((check: any, index: any) => `
                     <tr data-test-status="${escapeHtml(check.status)}">
                         ${index === 0
-                            ? `<td rowspan="${scenario.checks.length}">
+                    ? `<td rowspan="${scenario.checks.length}">
                                 <strong>${escapeHtml(scenario.label)}</strong>
                                 <span>${escapeHtml(scenario.description)}</span>
                                </td>`
-                            : ""}
+                    : ""}
                         <td>
                             <strong>${escapeHtml(check.label)}</strong>
                             ${check.detail
-                                ? `<span>${escapeHtml(check.detail)}</span>`
-                                : ""}
+                    ? `<span>${escapeHtml(check.detail)}</span>`
+                    : ""}
                         </td>
                         <td>${escapeHtml(check.measured)}</td>
                         <td>${escapeHtml(check.expected)}</td>
@@ -1217,9 +1217,9 @@ export function createTransientCampaignModule({
         }
     }
 
-    function transientValidationToCsv(report) {
+    function transientValidationToCsv(report: any) {
         if (!report?.checks?.length) return "";
-        const csvCell = value =>
+        const csvCell = (value: any) =>
             `"${String(value ?? "").replaceAll('"', '""')}"`;
         return [
             [
@@ -1230,7 +1230,7 @@ export function createTransientCampaignModule({
                 "critere",
                 "detail"
             ].map(csvCell).join(";"),
-            ...report.checks.map(check => [
+            ...report.checks.map((check: any) => [
                 check.scenario,
                 check.label,
                 check.status,

@@ -31,6 +31,10 @@ export interface ChartInstanceLike<TPoint = XYPoint> {
     // Les options Chart.js sont volontairement dynamiques et versionnées côté UI.
     // On localise l'interop non typé ici plutôt que de le propager au moteur.
     options: any;
+    scales: Record<string, ChartScaleLike | undefined>;
+    tooltip?: any;
+    setActiveElements?(elements: Array<{ datasetIndex: number; index: number }>): void;
+    draw?(): void;
     update(mode?: string): void;
     destroy(): void;
     resize?(): void;
@@ -44,8 +48,10 @@ export interface ChartPluginContextLike<TPoint = XYPoint>
 }
 
 export interface ChartConstructorLike<TPoint = XYPoint> {
+    defaults: any;
+    register(...plugins: any[]): void;
     new (
-        canvas: HTMLCanvasElement | CanvasRenderingContext2D,
+        canvas: HTMLCanvasElement | CanvasRenderingContext2D | HTMLElement | null,
         configuration: any
     ): ChartInstanceLike<TPoint>;
 }

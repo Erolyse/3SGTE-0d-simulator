@@ -3,14 +3,14 @@ import { DYNO_MODES } from "../Dyno/Dyno.js";
 import { ANALYSIS_CHANNELS } from "./config.js";
 
 function createAnalysisEngine({
-    baseAngleStepDeg = 0.5,
-    cycleAngleStepDeg = 0.5,
-    cycleHistory = 10,
-    captureIntervalSeconds = 0.18,
-    telemetryHistorySeconds = 45,
-    telemetryChannels = ANALYSIS_CHANNELS,
-    cycleRecorderEnabled = true
-} = {}) {
+                                  baseAngleStepDeg = 0.5,
+                                  cycleAngleStepDeg = 0.5,
+                                  cycleHistory = 10,
+                                  captureIntervalSeconds = 0.18,
+                                  telemetryHistorySeconds = 45,
+                                  telemetryChannels = ANALYSIS_CHANNELS,
+                                  cycleRecorderEnabled = true
+                              } = {}) {
     const engine = new Engine({
         telemetryOptions: {
             outputRateHz: 30,
