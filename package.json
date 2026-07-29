@@ -9,9 +9,13 @@
     "test:unit": "node tests/submodules.test.mjs",
     "test:transients": "node tests/transients.test.mjs",
     "test:syntax": "node tests/check-syntax.mjs",
-    "test:imports": "node tests/check-imports.mjs"
+    "test:imports": "node tests/check-imports.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }
