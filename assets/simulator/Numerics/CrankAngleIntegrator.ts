@@ -3,6 +3,10 @@
 // avec une limite temporelle pour les phénomènes lents et le démarrage.
 
 import { CYLINDER_OFFSETS } from "../Geometry/Geometry.js";
+import type {
+    CrankAngleIntegratorState,
+    CylinderIndex
+} from "../engine/EngineStateTypes.js";
 import {
     INTAKE_VALVE_OPEN_DEG,
     INTAKE_VALVE_CLOSE_DEG
@@ -58,7 +62,7 @@ const EVENT_DISTANCE_EPSILON_DEG = 1e-7;
 const MINIMUM_RESOLUTION_SCALE = 0.25;
 const MAXIMUM_RESOLUTION_SCALE = 4.0;
 
-function getResolutionScale(state) {
+function getResolutionScale(state: CrankAngleIntegratorState): number {
     const value = Number.isFinite(state?.angleSolverResolutionScale)
         ? state.angleSolverResolutionScale
         : 1;
@@ -72,22 +76,22 @@ function getResolutionScale(state) {
 
 // Outils angulaires
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function normalizeDegrees720(angleDeg) {
+function normalizeDegrees720(angleDeg: number): number {
     return (
         (angleDeg % FULL_ENGINE_CYCLE_DEG)
         + FULL_ENGINE_CYCLE_DEG
     ) % FULL_ENGINE_CYCLE_DEG;
 }
 
-function radiansToDegrees(angleRad) {
+function radiansToDegrees(angleRad: number): number {
     return angleRad * 180 / Math.PI;
 }
 
-function degreesToRadians(angleDeg) {
+function degreesToRadians(angleDeg: number): number {
     return angleDeg * Math.PI / 180;
 }
 
@@ -95,19 +99,25 @@ function degreesToRadians(angleDeg) {
  * Distance positive en degrés jusqu'au prochain passage sur un événement.
  * Le résultat appartient à l'intervalle [0, 720[.
  */
-function getForwardAngularDistanceDeg(currentDeg, eventDeg) {
+function getForwardAngularDistanceDeg(currentDeg: number, eventDeg: number): number {
     return normalizeDegrees720(eventDeg - currentDeg);
 }
 
 /**
  * Plus petite distance absolue sur un cycle de 720°.
  */
-function getCircularDistanceDeg(angleA, angleB) {
+function getCircularDistanceDeg(angleA: number, angleB: number): number {
     const forward = getForwardAngularDistanceDeg(angleA, angleB);
     return Math.min(forward, FULL_ENGINE_CYCLE_DEG - forward);
 }
 
-function getIgnitionEventsDeg(state) {
+export interface IgnitionEvents {
+    ignitionStartDeg: number;
+    ignitionEndDeg: number;
+    combustionDurationDeg: number;
+}
+
+function getIgnitionEventsDeg(state: CrankAngleIntegratorState): IgnitionEvents {
     const ignitionTimingDeg = clamp(
         Number.isFinite(state.ignitionTimingDeg)
             ? state.ignitionTimingDeg
@@ -129,7 +139,10 @@ function getIgnitionEventsDeg(state) {
     };
 }
 
-function getCylinderLocalAngleDeg(state, cylinderIndex) {
+function getCylinderLocalAngleDeg(
+    state: CrankAngleIntegratorState,
+    cylinderIndex: CylinderIndex
+): number {
     const localAngleRad = (
         state.crankAngle + CYLINDER_OFFSETS[cylinderIndex]
     ) % FOUR_PI;
@@ -138,15 +151,15 @@ function getCylinderLocalAngleDeg(state, cylinderIndex) {
 }
 
 function isInsideCombustionWindow(
-    localAngleDeg,
-    ignitionStartDeg,
-    ignitionEndDeg
-) {
+    localAngleDeg: number,
+    ignitionStartDeg: number,
+    ignitionEndDeg: number
+): boolean {
     return localAngleDeg >= ignitionStartDeg
         && localAngleDeg <= ignitionEndDeg;
 }
 
-function getImportantEventsDeg(state) {
+function getImportantEventsDeg(state: CrankAngleIntegratorState): number[] {
     const ignitionEvents = getIgnitionEventsDeg(state);
 
     // 720° et 0° représentent le même point. La fermeture échappement et
@@ -171,7 +184,9 @@ function getImportantEventsDeg(state) {
  * Avec quatre cylindres déphasés, une combustion ou un front de soupape d'un
  * seul cylindre suffit donc à raffiner le solveur global.
  */
-export function getTargetCrankAngleStepDeg(state) {
+export function getTargetCrankAngleStepDeg(
+    state: CrankAngleIntegratorState
+): number {
     const {
         ignitionStartDeg,
         ignitionEndDeg
@@ -182,7 +197,7 @@ export function getTargetCrankAngleStepDeg(state) {
     let requestedStepDeg = BASE_CRANK_ANGLE_STEP_DEG
         * resolutionScale;
 
-    for (let cylinderIndex = 0; cylinderIndex < 4; cylinderIndex++) {
+    for (const cylinderIndex of [0, 1, 2, 3] as const) {
         const localAngleDeg = getCylinderLocalAngleDeg(
             state,
             cylinderIndex
@@ -222,11 +237,14 @@ export function getTargetCrankAngleStepDeg(state) {
  * - début / fin de combustion ;
  * - EVO / EVC.
  */
-function getDistanceToNextEventDeg(state, proposedStepDeg) {
+function getDistanceToNextEventDeg(
+    state: CrankAngleIntegratorState,
+    proposedStepDeg: number
+): number {
     const importantEvents = getImportantEventsDeg(state);
     let nearestDistanceDeg = proposedStepDeg;
 
-    for (let cylinderIndex = 0; cylinderIndex < 4; cylinderIndex++) {
+    for (const cylinderIndex of [0, 1, 2, 3] as const) {
         const localAngleDeg = getCylinderLocalAngleDeg(
             state,
             cylinderIndex
@@ -262,7 +280,17 @@ function getDistanceToNextEventDeg(state, proposedStepDeg) {
  * @param {number} remainingTime Temps restant à intégrer dans Engine.update
  * @returns {object} Durée et diagnostics du pas choisi
  */
-export function calculateCrankAngleSubstep(state) {
+export interface CrankAngleSubstep {
+    dt: number;
+    targetAngleStepDeg: number;
+    limitedAngleStepDeg: number;
+    predictedAngleAdvanceDeg: number;
+    resolutionScale: number;
+}
+
+export function calculateCrankAngleSubstep(
+    state: CrankAngleIntegratorState
+): CrankAngleSubstep {
     const omega = Math.max(
         Number.isFinite(state.rpm)
             ? state.rpm * TWO_PI / 60

@@ -2,9 +2,12 @@
 
 import type { EngineStateData } from "./EngineStateTypes.js";
 
+// Le merge interface + classe donne au constructeur la forme complète de
+// EngineStateData sans dupliquer 350 déclarations de propriétés. Toute nouvelle
+// affectation dans ce fichier est donc vérifiée par TypeScript.
 export interface EngineState extends EngineStateData {}
 
-export class EngineState {
+export class EngineState implements EngineStateData {
     constructor() {
         // Rotation moteur
         this.rpm = 0;
@@ -418,7 +421,8 @@ export class EngineState {
 
         // Diagnostics de conservation masse / énergie
 
-        // Configuration et capture interne des diagnostics de conservation.
+        // Configuration et capture privée du diagnostic. Ces champs étaient
+        // auparavant créés à la volée par Engine/ConservationDiagnostics.
         this.conservationDiagnosticsStride = 1;
         this._conservationCaptureActive = false;
         this._conservationInitialCylinderMass = [0, 0, 0, 0];

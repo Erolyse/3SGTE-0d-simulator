@@ -1,4 +1,6 @@
 // Contrats de données centraux du simulateur.
+// Ces types décrivent la forme plate réellement stockée dans EngineState.
+// Ils n'introduisent aucun changement de modèle ni de représentation runtime.
 
 export type CylinderIndex = 0 | 1 | 2 | 3;
 export type ExhaustScrollIndex = 0 | 1;
@@ -464,7 +466,19 @@ export interface EngineStateData extends
     DriverInputState
 {}
 
+
+/** État minimal lu par le solveur adaptatif d'angle vilebrequin. */
+export type CrankAngleIntegratorState = Pick<
+    EngineStateData,
+    | "rpm"
+    | "crankAngle"
+    | "ignitionTimingDeg"
+    | "angleSolverResolutionScale"
+>;
+
 // Contrats d'accès par sous-système.
+// Ils gardent l'état runtime plat tout en documentant les domaines dont chaque
+// gros module a réellement besoin pendant la migration TypeScript.
 export type ThermodynamicsModuleState =
     EngineKinematicsState
     & CylinderState

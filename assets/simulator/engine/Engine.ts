@@ -5,6 +5,7 @@
 // distribution gardent ainsi une résolution presque indépendante du régime.
 
 import EngineState from "./EngineState.js";
+import type { CylinderIndex, EngineStateData } from "./EngineStateTypes.js";
 import {
     getCylinderVolume,
     getPistonDisplacementFromTDC,
@@ -44,7 +45,51 @@ import {
 const MAXIMUM_INTERNAL_SUBSTEPS_PER_UPDATE = 50000;
 const REMAINING_TIME_EPSILON = 1e-12;
 
+export interface TelemetrySampleSummary {
+    time: number;
+    sequence: number;
+}
+
+export interface TelemetryRecorderLike {
+    readonly outputRateHz: number;
+    readonly historySeconds: number;
+    readonly capacity: number;
+    readonly inputRateHz?: number;
+    readonly size: number;
+    recordSubstep(state: EngineStateData, dt: number): number;
+    getLatestSample(): TelemetrySampleSummary | null;
+}
+
+export interface CycleRecorderLike {
+    readonly enabled: boolean;
+    readonly cylinderIndex: number;
+    recordSubstep(state: EngineStateData, dt: number): unknown;
+}
+
+export interface EngineOptions {
+    telemetryRecorder?: TelemetryRecorderLike | null;
+    telemetryOptions?: ConstructorParameters<typeof TelemetryRecorder>[0];
+    cycleRecorder?: CycleRecorderLike | null;
+    cycleRecorderOptions?: ConstructorParameters<typeof CycleRecorder>[0];
+    conservationDiagnosticsStride?: number;
+    angleSolverBaseStepDeg?: number;
+}
+
+export interface AngleResolutionConfig {
+    baseStepDeg: number;
+    combustionStepDeg: number;
+    eventStepDeg: number;
+    scale: number;
+}
+
 export default class Engine {
+    readonly state: EngineState;
+    readonly telemetry: TelemetryRecorderLike;
+    readonly cycleRecorder: CycleRecorderLike;
+
+    pendingSimulationTime: number;
+    conservationDiagnosticsStride: number;
+    physicsSubstepSequence: number;
 
     constructor({
                     telemetryRecorder = null,
@@ -53,7 +98,7 @@ export default class Engine {
                     cycleRecorderOptions = {},
                     conservationDiagnosticsStride = 8,
                     angleSolverBaseStepDeg = BASE_CRANK_ANGLE_STEP_DEG
-                } = {}) {
+                }: EngineOptions = {}) {
         this.state = new EngineState();
 
         // L'enregistreur reçoit chaque sous-pas ANGULAIRE réellement intégré.
@@ -81,7 +126,7 @@ export default class Engine {
 
         this.state.cycleRecorderEnabled = this.cycleRecorder.enabled;
         this.state.cycleRecorderCylinderIndex
-            = this.cycleRecorder.cylinderIndex;
+            = this.cycleRecorder.cylinderIndex as CylinderIndex;
 
         // Temps reçu de la boucle temps réel mais pas encore consommé par un
         // sous-pas angulaire complet. Ce résidu rend le résultat indépendant de
@@ -111,15 +156,15 @@ export default class Engine {
 
     // Commandes de l'interface
 
-    start() {
+    start(): void {
         requestEngineStart(this.state);
     }
 
-    stop() {
+    stop(): void {
         requestEngineStop(this.state);
     }
 
-    toggle() {
+    toggle(): void {
         toggleEngine(this.state);
     }
 
@@ -130,7 +175,9 @@ export default class Engine {
      * solveur nominal. Cette méthode est destinée aux essais de convergence
      * 1,00° / 0,50° / 0,25°.
      */
-    setAngleResolution(baseStepDeg = BASE_CRANK_ANGLE_STEP_DEG) {
+    setAngleResolution(
+        baseStepDeg: number = BASE_CRANK_ANGLE_STEP_DEG
+    ): AngleResolutionConfig {
         const safeBaseStepDeg = Math.max(
             BASE_CRANK_ANGLE_STEP_DEG * 0.25,
             Math.min(
@@ -168,7 +215,7 @@ export default class Engine {
      * contrôle → angle → géométrie → admission → échappement → turbo →
      * thermodynamique fermée → couple → banc → transitions → carburant.
      */
-    updatePhysicsSubstep(dt) {
+    updatePhysicsSubstep(dt: number): void {
         // Capture des stocks avant toute modification du sous-pas. Les modules
         // physiques renseignent ensuite leurs flux exacts, puis le bilan est
         // fermé en fin de fonction sans agir sur la simulation.
@@ -235,7 +282,7 @@ export default class Engine {
 
     // Intégration angulaire depuis la boucle temps réel
 
-    update(dt) {
+    update(dt: number): void {
         if (!Number.isFinite(dt) || dt <= 0) {
             return;
         }
