@@ -1,7 +1,44 @@
+import type { TelemetrySample, TelemetryValue } from "./TelemetryRecorder.js";
+
+export interface TelemetryRecorderForChartAdapter {
+    getSamplesAfter(sequence?: number): TelemetrySample[];
+}
+
+export interface ChartPoint { x: number; y: number; }
+export interface ChartDatasetLike { data: ChartPoint[]; }
+export interface ChartLike {
+    data: { datasets: ChartDatasetLike[] };
+    update(mode?: string): void;
+}
+export interface ChartSeriesMapping {
+    datasetIndex: number;
+    key: string;
+    transform?: (value: TelemetryValue, sample: TelemetrySample) => unknown;
+}
+export interface ChartJsTelemetryAdapterOptions {
+    recorder: TelemetryRecorderForChartAdapter;
+    chart: ChartLike;
+    xKey?: string;
+    series?: ChartSeriesMapping[];
+    maximumPoints?: number;
+    minimumPointIntervalSeconds?: number;
+    maximumBatchSamples?: number;
+}
+
 // Adaptateur léger entre TelemetryRecorder et une instance Chart.js existante.
 // L'instance Chart.js est fournie de l'extérieur ; l'adapter reste générique.
 
 export default class ChartJsTelemetryAdapter {
+    readonly recorder: TelemetryRecorderForChartAdapter;
+    readonly chart: ChartLike;
+    readonly xKey: string;
+    readonly series: ChartSeriesMapping[];
+    readonly maximumPoints: number;
+    readonly minimumPointIntervalSeconds: number;
+    readonly maximumBatchSamples: number;
+    lastSequence: number;
+    lastAcceptedX: number;
+
     constructor({
                     recorder,
                     chart,
@@ -10,7 +47,7 @@ export default class ChartJsTelemetryAdapter {
                     maximumPoints = 900,
                     minimumPointIntervalSeconds = 0,
                     maximumBatchSamples = 2000
-                }) {
+                }: ChartJsTelemetryAdapterOptions) {
         if (!recorder || typeof recorder.getSamplesAfter !== "function") {
             throw new TypeError("Un TelemetryRecorder valide est requis.");
         }
@@ -40,7 +77,7 @@ export default class ChartJsTelemetryAdapter {
         this.lastAcceptedX = Number.NEGATIVE_INFINITY;
     }
 
-    reset() {
+    reset(): void {
         this.lastSequence = -1;
         this.lastAcceptedX = Number.NEGATIVE_INFINITY;
 
@@ -56,7 +93,7 @@ export default class ChartJsTelemetryAdapter {
      * Tous les échantillons 60 Hz produits depuis la dernière frame sont ajoutés,
      * puis Chart.js n'est rafraîchi qu'une seule fois.
      */
-    update() {
+    update(): number {
         let samples = this.recorder.getSamplesAfter(this.lastSequence);
 
         if (samples.length === 0) {
@@ -72,7 +109,7 @@ export default class ChartJsTelemetryAdapter {
             const sample = samples[sampleIndex];
             const xValue = sample[this.xKey];
 
-            if (!Number.isFinite(xValue)) {
+            if (typeof xValue !== "number" || !Number.isFinite(xValue)) {
                 continue;
             }
 
@@ -97,7 +134,7 @@ export default class ChartJsTelemetryAdapter {
                 const yValue = typeof mapping.transform === "function"
                     ? mapping.transform(rawValue, sample)
                     : rawValue;
-                if (!Number.isFinite(yValue)) continue;
+                if (typeof yValue !== "number" || !Number.isFinite(yValue)) continue;
 
                 dataset.data.push({ x: xValue, y: yValue });
             }

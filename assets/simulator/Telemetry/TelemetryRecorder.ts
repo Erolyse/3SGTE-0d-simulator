@@ -1,3 +1,5 @@
+import type { EngineStateData } from "../engine/EngineStateTypes.js";
+
 // Réduction passive des sous-pas physiques vers une fréquence fixe d'affichage.
 // Les moyennes sont pondérées par le temps et les sous-pas sont répartis aux
 // frontières de fenêtre sans réinjecter la télémétrie dans la physique.
@@ -6,7 +8,7 @@ export const DEFAULT_TELEMETRY_RATE_HZ = 30;
 export const DEFAULT_TELEMETRY_HISTORY_SECONDS = 30;
 export const DEFAULT_TELEMETRY_INPUT_RATE_HZ = 2000;
 
-const AGGREGATION_MODES = Object.freeze({
+export const AGGREGATION_MODES = Object.freeze({
     AVERAGE: "average",
     LAST: "last",
     MINIMUM: "minimum",
@@ -15,19 +17,52 @@ const AGGREGATION_MODES = Object.freeze({
     INTEGRAL: "integral"
 });
 
-export { AGGREGATION_MODES };
+export type AggregationMode = typeof AGGREGATION_MODES[keyof typeof AGGREGATION_MODES];
+export type TelemetryValue = number | string | boolean | null | undefined;
+export interface TelemetrySample extends Record<string, TelemetryValue> {
+    sequence: number;
+    time: number;
+    duration: number;
+    sampleRateHz: number;
+}
+export interface TelemetryChannel {
+    readonly key: string;
+    readonly select: (state: EngineStateData) => TelemetryValue;
+    readonly aggregation: AggregationMode;
+}
+interface TelemetryAccumulator {
+    channel: TelemetryChannel;
+    weightedSum: number;
+    squaredWeightedSum: number;
+    weight: number;
+    integral: number;
+    minimum: number;
+    maximum: number;
+    lastValue: TelemetryValue;
+    hasValue: boolean;
+    hasReportedError: boolean;
+}
+export interface TelemetryRecorderOptions {
+    outputRateHz?: number;
+    historySeconds?: number;
+    channels?: readonly TelemetryChannel[];
+    inputRateHz?: number;
+    enabled?: boolean;
+}
+export interface ClearTelemetryOptions { resetTime?: boolean; }
+export type TelemetryListener = (sample: TelemetrySample, recorder: TelemetryRecorder) => void;
 
-function clampFinite(value, fallback = 0) {
-    return Number.isFinite(value) ? value : fallback;
+function clampFinite(value: unknown, fallback = 0): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function arrayValue(array, index, fallback = 0) {
+function arrayValue(array: readonly unknown[] | null | undefined, index: number, fallback = 0): number {
     return Array.isArray(array)
         ? clampFinite(array[index], fallback)
         : fallback;
 }
 
-function sumFiniteArray(array) {
+function sumFiniteArray(array: readonly unknown[] | null | undefined): number {
     if (!Array.isArray(array)) {
         return 0;
     }
@@ -38,7 +73,7 @@ function sumFiniteArray(array) {
     );
 }
 
-function maxFiniteArray(array) {
+function maxFiniteArray(array: readonly unknown[] | null | undefined): number {
     if (!Array.isArray(array)) {
         return 0;
     }
@@ -52,15 +87,15 @@ function maxFiniteArray(array) {
     );
 }
 
-function radiansToDegrees(radians) {
+function radiansToDegrees(radians: unknown): number {
     return clampFinite(radians, 0) * 180 / Math.PI;
 }
 
 function createChannel(
-    key,
-    select,
-    aggregation = AGGREGATION_MODES.AVERAGE
-) {
+    key: string,
+    select: (state: EngineStateData) => TelemetryValue,
+    aggregation: AggregationMode = AGGREGATION_MODES.AVERAGE
+): TelemetryChannel {
     return Object.freeze({ key, select, aggregation });
 }
 
@@ -346,7 +381,7 @@ export const REALTIME_TELEMETRY_CHANNELS = Object.freeze(
     )
 );
 
-function createAccumulator(channel) {
+function createAccumulator(channel: TelemetryChannel): TelemetryAccumulator {
     return {
         channel,
         weightedSum: 0,
@@ -361,7 +396,7 @@ function createAccumulator(channel) {
     };
 }
 
-function resetAccumulator(accumulator) {
+function resetAccumulator(accumulator: TelemetryAccumulator): void {
     accumulator.weightedSum = 0;
     accumulator.squaredWeightedSum = 0;
     accumulator.weight = 0;
@@ -372,7 +407,7 @@ function resetAccumulator(accumulator) {
     accumulator.hasValue = false;
 }
 
-function accumulateValue(accumulator, rawValue, dt) {
+function accumulateValue(accumulator: TelemetryAccumulator, rawValue: TelemetryValue, dt: number): void {
     const mode = accumulator.channel.aggregation;
 
     // LAST accepte volontairement les chaînes et booléens, contrairement aux
@@ -385,7 +420,7 @@ function accumulateValue(accumulator, rawValue, dt) {
         return;
     }
 
-    if (!Number.isFinite(rawValue)) {
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
         return;
     }
 
@@ -416,7 +451,7 @@ function accumulateValue(accumulator, rawValue, dt) {
     }
 }
 
-function finalizeAccumulator(accumulator) {
+function finalizeAccumulator(accumulator: TelemetryAccumulator): TelemetryValue {
     if (!accumulator.hasValue) {
         return null;
     }
@@ -452,7 +487,12 @@ function finalizeAccumulator(accumulator) {
 // Buffer circulaire
 
 class CircularSampleBuffer {
-    constructor(capacity) {
+    readonly capacity: number;
+    readonly storage: Array<TelemetrySample | undefined>;
+    writeIndex: number;
+    size: number;
+
+    constructor(capacity: number) {
         if (!Number.isInteger(capacity) || capacity <= 0) {
             throw new RangeError(
                 "La capacité du buffer de télémétrie doit être positive."
@@ -465,32 +505,32 @@ class CircularSampleBuffer {
         this.size = 0;
     }
 
-    push(sample) {
+    push(sample: TelemetrySample): void {
         this.storage[this.writeIndex] = sample;
         this.writeIndex = (this.writeIndex + 1) % this.capacity;
         this.size = Math.min(this.size + 1, this.capacity);
     }
 
-    clear() {
+    clear(): void {
         this.storage.fill(undefined);
         this.writeIndex = 0;
         this.size = 0;
     }
 
-    toArray() {
-        const result = new Array(this.size);
+    toArray(): TelemetrySample[] {
+        const result: TelemetrySample[] = new Array(this.size);
         const start = (
             this.writeIndex - this.size + this.capacity
         ) % this.capacity;
 
         for (let i = 0; i < this.size; i++) {
-            result[i] = this.storage[(start + i) % this.capacity];
+            result[i] = this.storage[(start + i) % this.capacity]!;
         }
 
         return result;
     }
 
-    latest() {
+    latest(): TelemetrySample | null {
         if (this.size === 0) {
             return null;
         }
@@ -502,8 +542,8 @@ class CircularSampleBuffer {
         return this.storage[index] ?? null;
     }
 
-    samplesAfter(sequence = -1) {
-        const result = [];
+    samplesAfter(sequence = -1): TelemetrySample[] {
+        const result: TelemetrySample[] = [];
         const start = (
             this.writeIndex - this.size + this.capacity
         ) % this.capacity;
@@ -522,13 +562,29 @@ class CircularSampleBuffer {
 // Enregistreur
 
 export default class TelemetryRecorder {
+    readonly outputRateHz: number;
+    readonly samplePeriod: number;
+    readonly historySeconds: number;
+    readonly channels: readonly TelemetryChannel[];
+    readonly inputRateHz: number;
+    readonly inputSamplePeriod: number;
+    enabled: boolean;
+    readonly buffer: CircularSampleBuffer;
+    readonly accumulators: TelemetryAccumulator[];
+    readonly listeners: Set<TelemetryListener>;
+    simulationTime: number;
+    windowElapsedTime: number;
+    inputElapsedTime: number;
+    sequence: number;
+    totalSamplesProduced: number;
+
     constructor({
                     outputRateHz = DEFAULT_TELEMETRY_RATE_HZ,
                     historySeconds = DEFAULT_TELEMETRY_HISTORY_SECONDS,
                     channels = DEFAULT_TELEMETRY_CHANNELS,
                     inputRateHz = DEFAULT_TELEMETRY_INPUT_RATE_HZ,
                     enabled = true
-                } = {}) {
+                }: TelemetryRecorderOptions = {}) {
         if (!Number.isFinite(outputRateHz) || outputRateHz <= 0) {
             throw new RangeError(
                 "La fréquence de télémétrie doit être strictement positive."
@@ -587,15 +643,15 @@ export default class TelemetryRecorder {
         this.totalSamplesProduced = 0;
     }
 
-    get size() {
+    get size(): number {
         return this.buffer.size;
     }
 
-    get capacity() {
+    get capacity(): number {
         return this.buffer.capacity;
     }
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean): void {
         this.enabled = Boolean(enabled);
 
         // Une fenêtre partielle est annulée lors d'une pause d'acquisition.
@@ -604,13 +660,13 @@ export default class TelemetryRecorder {
         }
     }
 
-    resetCurrentWindow() {
+    resetCurrentWindow(): void {
         this.windowElapsedTime = 0;
         this.inputElapsedTime = 0;
         this.accumulators.forEach(resetAccumulator);
     }
 
-    clear({ resetTime = false } = {}) {
+    clear({ resetTime = false }: ClearTelemetryOptions = {}): void {
         this.buffer.clear();
         this.resetCurrentWindow();
         this.sequence = 0;
@@ -621,7 +677,7 @@ export default class TelemetryRecorder {
         }
     }
 
-    subscribe(listener) {
+    subscribe(listener: TelemetryListener): () => void {
         if (typeof listener !== "function") {
             throw new TypeError(
                 "Le listener de télémétrie doit être une fonction."
@@ -636,11 +692,11 @@ export default class TelemetryRecorder {
         };
     }
 
-    getLatestSample() {
+    getLatestSample(): TelemetrySample | null {
         return this.buffer.latest();
     }
 
-    getHistory() {
+    getHistory(): TelemetrySample[] {
         return this.buffer.toArray();
     }
 
@@ -651,11 +707,11 @@ export default class TelemetryRecorder {
      * consommateurs Chart.js peuvent lire le même recorder sans se voler les
      * données comme avec une file `consume()` destructive.
      */
-    getSamplesAfter(sequence = -1) {
+    getSamplesAfter(sequence = -1): TelemetrySample[] {
         return this.buffer.samplesAfter(sequence);
     }
 
-    recordSubstep(state, dt) {
+    recordSubstep(state: EngineStateData, dt: number): number {
         if (!Number.isFinite(dt) || dt <= 0) {
             return 0;
         }
@@ -678,7 +734,7 @@ export default class TelemetryRecorder {
         return this.recordObservedState(state, observedDuration);
     }
 
-    recordObservedState(state, duration) {
+    recordObservedState(state: EngineStateData, duration: number): number {
         let remainingTime = duration;
         let emittedSamples = 0;
         const epsilon = 1e-12;
@@ -727,8 +783,8 @@ export default class TelemetryRecorder {
         return emittedSamples;
     }
 
-    emitCurrentWindow() {
-        const sample = {
+    emitCurrentWindow(): void {
+        const sample: TelemetrySample = {
             sequence: this.sequence,
             time: this.simulationTime,
             duration: this.samplePeriod,
@@ -760,7 +816,7 @@ export default class TelemetryRecorder {
         this.resetCurrentWindow();
     }
 
-    exportJson({ pretty = true } = {}) {
+    exportJson({ pretty = true }: { pretty?: boolean } = {}): string {
         return JSON.stringify(
             this.getHistory(),
             null,
@@ -768,7 +824,7 @@ export default class TelemetryRecorder {
         );
     }
 
-    exportCsv(keys = null) {
+    exportCsv(keys: string[] | null = null): string {
         const samples = this.getHistory();
 
         if (samples.length === 0) {
@@ -779,7 +835,7 @@ export default class TelemetryRecorder {
             ? ["sequence", "time", ...keys]
             : Object.keys(samples[0]);
 
-        const escapeCell = value => {
+        const escapeCell = (value: TelemetryValue): string => {
             if (value === null || value === undefined) {
                 return "";
             }

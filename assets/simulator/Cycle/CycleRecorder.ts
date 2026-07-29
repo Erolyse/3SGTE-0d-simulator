@@ -1,3 +1,6 @@
+import type { EngineStateData, CylinderIndex } from "../engine/EngineStateTypes.js";
+import type { CycleEvents, CycleSample, CycleSummary, RecordedCycle } from "../Charts/VisualizationTypes.js";
+
 // Recorder passif d'un cycle thermodynamique complet de 720°.
 // Il conserve la résolution angulaire native pour pression-angle, P-V et bilans
 // thermiques, indépendamment de la télémétrie temporelle.
@@ -23,6 +26,75 @@ import {
     EXHAUST_SCROLL_BY_CYLINDER
 } from "../Exhaust/ExhaustManifold.js";
 
+
+export interface CycleRecorderOptions {
+    cylinderIndex?: number;
+    historyCycles?: number;
+    maximumSamplesPerCycle?: number;
+    minimumRecordingRpm?: number;
+    angularSampleStepDeg?: number;
+    captureIntervalSeconds?: number;
+    enabled?: boolean;
+}
+
+export interface CycleRecorderSample extends CycleSample {
+    angleDeg: number;
+    absoluteTime: number;
+    deltaTime: number;
+    timeFromCycleStart?: number;
+}
+
+interface CycleIntegrals {
+    rpmTime: number; torqueTime: number; powerTime: number; boostTime: number;
+    intakePressureTime: number; exhaustPressureTime: number; ignitionTimingTime: number;
+    combustionDurationTime: number; ca50ModelTime: number; ca50TargetTime: number;
+    ca50TargetValidTime: number; heatReleasedJ: number; wallHeatTransferJ: number;
+    closedBoundaryWorkJ: number; pumpingBoundaryWorkJ: number; intakeEnthalpyJ: number;
+    exhaustEnthalpyJ: number; fuelMassAddedKg: number;
+}
+
+type CombustionCrossingKey = "ca10Deg" | "ca50Deg" | "ca90Deg";
+interface CombustionCrossings extends Record<CombustionCrossingKey, number> {
+    previousAngleDeg: number;
+    previousBurnedFraction: number;
+}
+
+interface CycleExtrema {
+    peakPressurePa: number; peakPressureAngleDeg: number; minimumPressurePa: number;
+    peakTemperatureK: number; peakTemperatureAngleDeg: number;
+    maximumIntakeMassFlowKgS: number; maximumExhaustMassFlowKgS: number;
+    maximumMassResidualPercent: number; maximumEnergyResidualPercent: number;
+}
+
+export interface CycleSummaryDetails extends CycleSummary {
+    durationSeconds: number;
+    sampleCount: number;
+    meanRpm: number;
+    peakPressurePa: number;
+    peakPressureAngleDeg: number;
+    heatReleasedJ: number;
+    wallHeatTransferJ: number;
+    closedBoundaryWorkJ: number;
+    pumpingBoundaryWorkJ: number;
+    totalBoundaryWorkJ: number;
+    [key: string]: number | boolean | undefined;
+}
+export interface CycleEventsDetails extends CycleEvents {
+    [key: string]: number | undefined;
+}
+export interface RecordedCycleDetails extends RecordedCycle {
+    startTime: number; endTime: number; duration: number; angularStepDeg: number;
+    samples: CycleRecorderSample[]; truncated: boolean;
+    summary?: CycleSummaryDetails; events?: CycleEventsDetails;
+}
+interface InternalCycle extends RecordedCycleDetails {
+    nextSampleAngleDeg?: number;
+    integrals?: CycleIntegrals;
+    combustionCrossings?: CombustionCrossings;
+    extrema?: CycleExtrema;
+}
+export type CycleSubscriber = (cycle: RecordedCycleDetails) => void;
+
 const FULL_CYCLE_DEG = 720;
 const FOUR_PI = 4 * Math.PI;
 const RAD_TO_DEG = 180 / Math.PI;
@@ -35,15 +107,15 @@ const DEFAULT_CAPTURE_INTERVAL_SECONDS = 0.25;
 const WRAP_DETECTION_THRESHOLD_DEG = 360;
 const NUMERIC_EPSILON = 1e-12;
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function finite(value, fallback = 0) {
-    return Number.isFinite(value) ? value : fallback;
+function finite(value: unknown, fallback = 0): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function arrayValue(array, index, fallback = 0) {
+function arrayValue(array: readonly unknown[] | null | undefined, index: number, fallback = 0): number {
     if (!Array.isArray(array)) {
         return fallback;
     }
@@ -51,14 +123,14 @@ function arrayValue(array, index, fallback = 0) {
     return finite(array[index], fallback);
 }
 
-function normalizeDegrees720(angleDeg) {
+function normalizeDegrees720(angleDeg: number): number {
     return (
         (angleDeg % FULL_CYCLE_DEG)
         + FULL_CYCLE_DEG
     ) % FULL_CYCLE_DEG;
 }
 
-function getCylinderLocalAngleDeg(state, cylinderIndex) {
+function getCylinderLocalAngleDeg(state: EngineStateData, cylinderIndex: number): number {
     const localAngleRad = (
         finite(state.crankAngle)
         + CYLINDER_OFFSETS[cylinderIndex]
@@ -67,7 +139,7 @@ function getCylinderLocalAngleDeg(state, cylinderIndex) {
     return normalizeDegrees720(localAngleRad * RAD_TO_DEG);
 }
 
-function getWiebeNormalizedPosition(fraction) {
+function getWiebeNormalizedPosition(fraction: number): number {
     // Loi de Wiebe utilisée dans Thermodynamics.js :
     // xb = 1 - exp(-5 * x^3)
     const safeFraction = clamp(fraction, 1e-9, 1 - 1e-9);
@@ -80,12 +152,12 @@ function getWiebeNormalizedPosition(fraction) {
  * sans reconstruire ces angles à partir de la loi de Wiebe.
  */
 export function interpolateMonotonicThresholdCrossing(
-    previousAngleDeg,
-    previousValue,
-    currentAngleDeg,
-    currentValue,
-    threshold
-) {
+    previousAngleDeg: number,
+    previousValue: number,
+    currentAngleDeg: number,
+    currentValue: number,
+    threshold: number
+): number {
     if (![previousAngleDeg, previousValue, currentAngleDeg, currentValue, threshold]
         .every(Number.isFinite)) {
         return NaN;
@@ -106,7 +178,7 @@ export function interpolateMonotonicThresholdCrossing(
         + (currentAngleDeg - previousAngleDeg) * fraction;
 }
 
-function getCyclePhase(angleDeg, intakeOpen, exhaustOpen) {
+function getCyclePhase(angleDeg: number, intakeOpen: boolean, exhaustOpen: boolean): string {
     if (intakeOpen) {
         return "intake";
     }
@@ -119,7 +191,7 @@ function getCyclePhase(angleDeg, intakeOpen, exhaustOpen) {
     return "combustionExpansion";
 }
 
-function cloneSampleWithBoundaryAngle(sample, boundaryAngleDeg, dt = 0) {
+function cloneSampleWithBoundaryAngle(sample: CycleRecorderSample, boundaryAngleDeg: number, dt = 0): CycleRecorderSample {
     return {
         ...sample,
         angleDeg: boundaryAngleDeg,
@@ -136,6 +208,21 @@ function cloneSampleWithBoundaryAngle(sample, boundaryAngleDeg, dt = 0) {
  * détente → échappement.
  */
 export default class CycleRecorder {
+    cylinderIndex: CylinderIndex;
+    readonly historyCycles: number;
+    readonly maximumSamplesPerCycle: number;
+    readonly minimumRecordingRpm: number;
+    readonly angularSampleStepDeg: number;
+    readonly captureIntervalSeconds: number;
+    enabled: boolean;
+    elapsedSimulationTime: number;
+    nextCaptureAllowedTime: number;
+    previousLocalAngleDeg: number | null;
+    currentCycle: InternalCycle | null;
+    readonly completedCycles: InternalCycle[];
+    sequence: number;
+    readonly subscribers: Set<CycleSubscriber>;
+
     constructor({
                     cylinderIndex = 0,
                     historyCycles = DEFAULT_HISTORY_CYCLES,
@@ -144,8 +231,8 @@ export default class CycleRecorder {
                     angularSampleStepDeg = DEFAULT_ANGULAR_SAMPLE_STEP_DEG,
                     captureIntervalSeconds = DEFAULT_CAPTURE_INTERVAL_SECONDS,
                     enabled = true
-                } = {}) {
-        this.cylinderIndex = clamp(Math.trunc(cylinderIndex), 0, 3);
+                }: CycleRecorderOptions = {}) {
+        this.cylinderIndex = clamp(Math.trunc(cylinderIndex), 0, 3) as CylinderIndex;
         this.historyCycles = Math.max(Math.trunc(historyCycles), 1);
         this.maximumSamplesPerCycle = Math.max(
             Math.trunc(maximumSamplesPerCycle),
@@ -174,15 +261,15 @@ export default class CycleRecorder {
 
     // Commandes publiques
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean): void {
         this.enabled = Boolean(enabled);
         if (!this.enabled) {
             this.resetCurrentCapture();
         }
     }
 
-    setCylinder(cylinderIndex) {
-        const nextIndex = clamp(Math.trunc(cylinderIndex), 0, 3);
+    setCylinder(cylinderIndex: number): void {
+        const nextIndex = clamp(Math.trunc(cylinderIndex), 0, 3) as CylinderIndex;
         if (nextIndex === this.cylinderIndex) {
             return;
         }
@@ -192,13 +279,13 @@ export default class CycleRecorder {
         this.resetCurrentCapture();
     }
 
-    clear() {
+    clear(): void {
         this.completedCycles.length = 0;
         this.previousLocalAngleDeg = null;
         this.resetCurrentCapture();
     }
 
-    subscribe(callback) {
+    subscribe(callback: CycleSubscriber): () => void {
         if (typeof callback !== "function") {
             return () => {};
         }
@@ -207,17 +294,17 @@ export default class CycleRecorder {
         return () => this.subscribers.delete(callback);
     }
 
-    getLatestCycle() {
+    getLatestCycle(): RecordedCycleDetails | null {
         return this.completedCycles.length > 0
             ? this.completedCycles[this.completedCycles.length - 1]
             : null;
     }
 
-    getHistory() {
+    getHistory(): RecordedCycleDetails[] {
         return this.completedCycles.slice();
     }
 
-    getCurrentCyclePreview() {
+    getCurrentCyclePreview(): RecordedCycleDetails | null {
         return this.currentCycle;
     }
 
@@ -225,7 +312,7 @@ export default class CycleRecorder {
      * Exporte un cycle au format CSV. Les clés par défaut couvrent les premiers
      * graphiques envisagés : pression-angle, P-V, soupapes et bilan thermique.
      */
-    exportCsv(cycle = this.getLatestCycle(), fields = null) {
+    exportCsv(cycle: RecordedCycleDetails | null = this.getLatestCycle(), fields: string[] | null = null): string {
         if (!cycle || !Array.isArray(cycle.samples)) {
             return "";
         }
@@ -248,7 +335,7 @@ export default class CycleRecorder {
                 "boundaryWorkRateW"
             ];
 
-        const escapeCsv = value => {
+        const escapeCsv = (value: unknown): string => {
             if (typeof value === "string") {
                 return `"${value.replaceAll('"', '""')}"`;
             }
@@ -276,7 +363,7 @@ export default class CycleRecorder {
      * @param {number} dt Durée exacte du sous-pas en secondes
      * @returns {object|null} Cycle finalisé lors de ce sous-pas, sinon null
      */
-    recordSubstep(state, dt) {
+    recordSubstep(state: EngineStateData, dt: number): RecordedCycleDetails | null {
         if (!Number.isFinite(dt) || dt <= 0) {
             return null;
         }
@@ -348,16 +435,16 @@ export default class CycleRecorder {
                 + this.captureIntervalSeconds;
         } else {
             const cycle = this.currentCycle;
-            while (cycle.nextSampleAngleDeg
+            while (cycle.nextSampleAngleDeg!
             <= localAngleDeg + NUMERIC_EPSILON) {
                 const displaySample = this.createSample(
                     state,
                     dt,
-                    cycle.nextSampleAngleDeg
-                );
+                    cycle.nextSampleAngleDeg!
+            );
                 displaySample.deltaTime = 0;
                 this.appendSample(cycle, displaySample, state);
-                cycle.nextSampleAngleDeg += this.angularSampleStepDeg;
+                cycle.nextSampleAngleDeg! += this.angularSampleStepDeg;
 
                 if (cycle.samples.length >= this.maximumSamplesPerCycle) {
                     cycle.truncated = true;
@@ -373,7 +460,7 @@ export default class CycleRecorder {
 
     // Création des échantillons
 
-    createSample(state, dt, localAngleDeg) {
+    createSample(state: EngineStateData, dt: number, localAngleDeg: number): CycleRecorderSample {
         const cylinder = this.cylinderIndex;
         const scroll = EXHAUST_SCROLL_BY_CYLINDER[cylinder] ?? 0;
 
@@ -586,7 +673,7 @@ export default class CycleRecorder {
 
     // Construction et finalisation du cycle
 
-    createCycleContainer(initialSample) {
+    createCycleContainer(initialSample: CycleRecorderSample): InternalCycle {
         return {
             sequence: this.sequence,
             cylinderIndex: this.cylinderIndex,
@@ -643,7 +730,7 @@ export default class CycleRecorder {
         };
     }
 
-    appendSample(cycle, sample, state) {
+    appendSample(cycle: InternalCycle, sample: CycleRecorderSample, state: EngineStateData): void {
         if (cycle.samples.length >= this.maximumSamplesPerCycle) {
             cycle.truncated = true;
             return;
@@ -657,7 +744,7 @@ export default class CycleRecorder {
         state.cycleRecorderSamplesCurrentCycle = cycle.samples.length;
     }
 
-    accumulateCycleStep(cycle, state, dt, localAngleDeg) {
+    accumulateCycleStep(cycle: InternalCycle, state: EngineStateData, dt: number, localAngleDeg: number): void {
         const cylinder = this.cylinderIndex;
         const scroll = EXHAUST_SCROLL_BY_CYLINDER[cylinder] ?? 0;
         const safeDt = Math.max(dt, NUMERIC_EPSILON);
@@ -665,7 +752,7 @@ export default class CycleRecorder {
         cycle.endTime = this.elapsedSimulationTime;
         cycle.duration += safeDt;
 
-        const integrals = cycle.integrals;
+        const integrals = cycle.integrals!;
         integrals.rpmTime += finite(state.rpm) * safeDt;
         integrals.torqueTime += finite(state.torque) * safeDt;
         integrals.powerTime += finite(state.power) * safeDt;
@@ -695,7 +782,7 @@ export default class CycleRecorder {
             0,
             1
         );
-        const crossings = cycle.combustionCrossings;
+        const crossings = cycle.combustionCrossings!;
         const previousAngleDeg = crossings.previousAngleDeg;
         const previousBurnedFraction = crossings.previousBurnedFraction;
 
@@ -706,7 +793,7 @@ export default class CycleRecorder {
                 ["ca10Deg", 0.10],
                 ["ca50Deg", 0.50],
                 ["ca90Deg", 0.90]
-            ]) {
+            ] as const satisfies readonly (readonly [CombustionCrossingKey, number])[]) {
                 if (Number.isFinite(crossings[key])) {
                     continue;
                 }
@@ -761,7 +848,7 @@ export default class CycleRecorder {
         const temperature = arrayValue(state.cylinderTemperatures, cylinder);
         const intakeFlow = arrayValue(state.intakeValveMassFlow, cylinder);
         const exhaustFlow = arrayValue(state.exhaustValveMassFlow, cylinder);
-        const extrema = cycle.extrema;
+        const extrema = cycle.extrema!;
 
         if (pressure > extrema.peakPressurePa) {
             extrema.peakPressurePa = pressure;
@@ -793,7 +880,7 @@ export default class CycleRecorder {
         );
     }
 
-    finalizeCurrentCycle(state) {
+    finalizeCurrentCycle(state: EngineStateData): RecordedCycleDetails | null {
         const cycle = this.currentCycle;
         this.currentCycle = null;
 
@@ -802,7 +889,7 @@ export default class CycleRecorder {
         }
 
         const duration = Math.max(cycle.duration, NUMERIC_EPSILON);
-        const integrals = cycle.integrals;
+        const integrals = cycle.integrals!;
 
         const meanIgnitionTimingDeg
             = integrals.ignitionTimingTime / duration;
@@ -829,17 +916,17 @@ export default class CycleRecorder {
             + meanCombustionDurationDeg;
 
         const ca10MeasuredDeg = finite(
-            cycle.combustionCrossings.ca10Deg,
+            cycle.combustionCrossings!.ca10Deg,
             NaN
-        );
+    );
         const ca50MeasuredDeg = finite(
-            cycle.combustionCrossings.ca50Deg,
+            cycle.combustionCrossings!.ca50Deg,
             NaN
-        );
+    );
         const ca90MeasuredDeg = finite(
-            cycle.combustionCrossings.ca90Deg,
+            cycle.combustionCrossings!.ca90Deg,
             NaN
-        );
+    );
         const ca50MeasuredDegAfterTdc = Number.isFinite(ca50MeasuredDeg)
             ? ca50MeasuredDeg - 360
             : NaN;
@@ -849,12 +936,13 @@ export default class CycleRecorder {
 
         const totalBoundaryWorkJ = integrals.closedBoundaryWorkJ
             + integrals.pumpingBoundaryWorkJ;
+        const extrema = cycle.extrema!;
 
         cycle.summary = {
             durationSeconds: cycle.duration,
             sampleCount: cycle.samples.length,
-            angleCoverageDeg: cycle.samples.at(-1)?.angleDeg
-                - cycle.samples[0]?.angleDeg,
+            angleCoverageDeg: cycle.samples.at(-1)!.angleDeg
+        - cycle.samples[0]!.angleDeg,
             meanRpm: integrals.rpmTime / duration,
             meanTorqueNm: integrals.torqueTime / duration,
             meanPowerW: integrals.powerTime / duration,
@@ -883,32 +971,32 @@ export default class CycleRecorder {
             fuelMassAddedKg: integrals.fuelMassAddedKg,
 
             indicatedMeanTorqueContributionNm:
-                totalBoundaryWorkJ / (4 * Math.PI),
+        totalBoundaryWorkJ / (4 * Math.PI),
             grossIndicatedMeanEffectivePressurePa:
-                integrals.closedBoundaryWorkJ / SWEPT_VOLUME,
+        integrals.closedBoundaryWorkJ / SWEPT_VOLUME,
             pumpingMeanEffectivePressurePa:
-                integrals.pumpingBoundaryWorkJ / SWEPT_VOLUME,
+        integrals.pumpingBoundaryWorkJ / SWEPT_VOLUME,
             netIndicatedMeanEffectivePressurePa:
-                totalBoundaryWorkJ / SWEPT_VOLUME,
+        totalBoundaryWorkJ / SWEPT_VOLUME,
 
-            peakPressurePa: cycle.extrema.peakPressurePa,
-            peakPressureAngleDeg: cycle.extrema.peakPressureAngleDeg,
+            peakPressurePa: extrema.peakPressurePa,
+            peakPressureAngleDeg: extrema.peakPressureAngleDeg,
             minimumPressurePa: Number.isFinite(
-                cycle.extrema.minimumPressurePa
-            ) ? cycle.extrema.minimumPressurePa : 0,
-            peakTemperatureK: cycle.extrema.peakTemperatureK,
+            extrema.minimumPressurePa
+        ) ? extrema.minimumPressurePa : 0,
+            peakTemperatureK: extrema.peakTemperatureK,
             peakTemperatureAngleDeg:
-            cycle.extrema.peakTemperatureAngleDeg,
+        extrema.peakTemperatureAngleDeg,
             maximumIntakeMassFlowKgS:
-            cycle.extrema.maximumIntakeMassFlowKgS,
+        extrema.maximumIntakeMassFlowKgS,
             maximumExhaustMassFlowKgS:
-            cycle.extrema.maximumExhaustMassFlowKgS,
+        extrema.maximumExhaustMassFlowKgS,
             maximumMassResidualPercent:
-            cycle.extrema.maximumMassResidualPercent,
+        extrema.maximumMassResidualPercent,
             maximumEnergyResidualPercent:
-            cycle.extrema.maximumEnergyResidualPercent,
+        extrema.maximumEnergyResidualPercent,
             truncated: cycle.truncated
-        };
+    };
 
         cycle.events = {
             tdcIntakeDeg: 0,
@@ -959,11 +1047,11 @@ export default class CycleRecorder {
         return cycle;
     }
 
-    resetCurrentCapture() {
+    resetCurrentCapture(): void {
         this.currentCycle = null;
     }
 
-    updateStateDiagnostics(state, completedCycle = null) {
+    updateStateDiagnostics(state: EngineStateData, completedCycle: RecordedCycleDetails | null = null): void {
         state.cycleRecorderEnabled = this.enabled;
         state.cycleRecorderCylinderIndex = this.cylinderIndex;
         state.cycleRecorderAngularStepDeg = this.angularSampleStepDeg;
