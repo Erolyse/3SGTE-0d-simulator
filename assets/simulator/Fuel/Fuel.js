@@ -1,7 +1,7 @@
 // Consommation de carburant injecté : débit instantané et moyenne en L/100 km.
 // La distance routière équivalente provient du modèle de banc dans Dyno.js.
 
-const FUEL_DENSITY_KG_PER_L = 0.745; // kg/L, essence de travail
+import { FUEL_DENSITY_KG_PER_L } from "./FuelConstants.js";
 
 // La combustion est pulsée cylindre par cylindre. Un affichage direct serait à
 // zéro pendant une grande partie du cycle puis présenterait des pics très élevés.

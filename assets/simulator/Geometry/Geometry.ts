@@ -27,7 +27,7 @@ export const CYLINDER_OFFSETS = [
  * @param {number} theta Angle du vilebrequin en radians (0 = PMH)
  * @returns {number} Descente du piston en mètres
  */
-export function getPistonDisplacementFromTDC(theta) {
+export function getPistonDisplacementFromTDC(theta: number): number {
     const r = CRANK_RADIUS;
     const l = ROD_LENGTH;
 
@@ -42,7 +42,7 @@ export function getPistonDisplacementFromTDC(theta) {
  * @param {number} theta Angle du vilebrequin en radians
  * @returns {number} Volume total en mètres cubes
  */
-export function getCylinderVolume(theta) {
+export function getCylinderVolume(theta: number): number {
     const x = getPistonDisplacementFromTDC(theta);
     return CLEARANCE_VOLUME + PISTON_AREA * x;
 }
@@ -54,7 +54,7 @@ export function getCylinderVolume(theta) {
  * @param {number} theta Angle du vilebrequin en radians
  * @returns {number} dx/dtheta en mètres/radian (signé : négatif quand le piston remonte)
  */
-export function getTorqueArm(theta) {
+export function getTorqueArm(theta: number): number {
     const r = CRANK_RADIUS;
     const l = ROD_LENGTH;
     const ratio = r / l;

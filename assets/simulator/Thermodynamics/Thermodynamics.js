@@ -12,20 +12,13 @@ import { isExhaustValveOpen } from "../Valvetrain/ExhaustValves.js";
 import {
     calculateCylinderWallHeatTransfer
 } from "./CylinderHeatTransfer.js";
+import {
+    COMBUSTION_HEAT_RELEASE_EFFICIENCY,
+    LHV_FUEL,
+    STOICHIOMETRIC_AFR
+} from "../Fuel/FuelConstants.js";
 
 // Constantes de combustion
-
-// Pouvoir calorifique inférieur de travail de l'essence.
-// Il représente l'énergie chimique libérable par kilogramme de carburant.
-const LHV_FUEL = 44000000; // J/kg — 44 MJ/kg
-
-// Toute l'énergie chimique du carburant ne devient pas instantanément de la
-// chaleur utile dans les gaz : combustion incomplète locale, dissociation,
-// carburant imbrûlé et simplifications de la loi de Wiebe.
-// Cette constante n'est PAS un rendement mécanique : les pertes aux parois et
-// le travail du piston sont calculés séparément dans le bilan d'énergie.
-const COMBUSTION_HEAT_RELEASE_EFFICIENCY = 0.96;
-const STOICHIOMETRIC_AFR = 14.7;
 
 // Un mélange enrichi injecte davantage de carburant, mais l'oxygène disponible
 // limite la masse pouvant réellement libérer son PCI. Sans cette garde, passer

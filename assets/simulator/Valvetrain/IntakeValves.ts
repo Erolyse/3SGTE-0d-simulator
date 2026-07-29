@@ -7,6 +7,11 @@
 // du collecteur et du cylindre.
 
 import { STROKE } from "../Geometry/Geometry.js";
+import {
+    radiansToDegrees,
+    smoothStep01
+} from "../Math/Utils.js";
+import { calculateValveFlowArea } from "./ValveGeometry.js";
 
 // Calage de distribution
 
@@ -52,22 +57,13 @@ const INTAKE_LOW_LIFT_DISCHARGE_FACTOR = 0.66;
 const INTAKE_LIFT_RATIO_DEVELOPMENT_START = 0.015;
 const INTAKE_LIFT_RATIO_FULLY_DEVELOPED = 0.18;
 
-function clamp(value, minimum, maximum) {
-    return Math.max(minimum, Math.min(maximum, value));
-}
-
-function smoothStep01(value) {
-    const x = clamp(value, 0, 1);
-    return x * x * (3 - 2 * x);
-}
-
 /**
  * Coefficient de décharge corrigé par un proxy de nombre de Reynolds.
  * La vitesse moyenne du piston augmente le débit et la turbulence dans les ports ;
  * le coefficient se rapproche alors progressivement de sa valeur de régime
  * pleinement turbulent. Aucun régime moteur cible n'est imposé à la puissance.
  */
-export function getIntakeValveDischargeCoefficient(rpm, thetaLocal) {
+export function getIntakeValveDischargeCoefficient(rpm: number, thetaLocal: number): number {
     const meanPistonSpeed = 2 * STROKE * Math.max(rpm, 0) / 60;
     const reynoldsTransition = smoothStep01(
         (meanPistonSpeed
@@ -104,17 +100,13 @@ export function getIntakeValveDischargeCoefficient(rpm, thetaLocal) {
 }
 // Outils angulaires
 
-function radiansToDegrees(angleRad) {
-    return angleRad * 180 / Math.PI;
-}
-
 /**
  * Indique si les soupapes d'admission sont ouvertes à cet angle local.
  *
  * @param {number} thetaLocal Angle cylindre local en radians sur 0 à 4*PI
  * @returns {boolean}
  */
-export function isIntakeValveOpen(thetaLocal) {
+export function isIntakeValveOpen(thetaLocal: number): boolean {
     const angleDeg = radiansToDegrees(thetaLocal);
 
     return angleDeg >= INTAKE_VALVE_OPEN_DEG
@@ -134,7 +126,7 @@ export function isIntakeValveOpen(thetaLocal) {
  * @param {number} thetaLocal Angle cylindre local en radians
  * @returns {number} Levée en mètres
  */
-export function getIntakeValveLift(thetaLocal) {
+export function getIntakeValveLift(thetaLocal: number): number {
     if (!isIntakeValveOpen(thetaLocal)) {
         return 0;
     }
@@ -186,22 +178,17 @@ export function getIntakeValveLift(thetaLocal) {
  * @param {number} thetaLocal Angle cylindre local en radians
  * @returns {number} Aire géométrique totale en m²
  */
-export function getIntakeValveFlowArea(thetaLocal) {
+export function getIntakeValveFlowArea(thetaLocal: number): number {
     const lift = getIntakeValveLift(thetaLocal);
 
     if (lift <= 0) {
         return 0;
     }
 
-    const curtainArea = INTAKE_VALVE_COUNT
-        * Math.PI
-        * INTAKE_VALVE_DIAMETER
-        * lift;
-
-    const portThroatArea = INTAKE_VALVE_COUNT
-        * Math.PI
-        * Math.pow(INTAKE_PORT_DIAMETER, 2)
-        / 4;
-
-    return Math.min(curtainArea, portThroatArea);
+    return calculateValveFlowArea(
+        INTAKE_VALVE_COUNT,
+        INTAKE_VALVE_DIAMETER,
+        INTAKE_PORT_DIAMETER,
+        lift
+    );
 }

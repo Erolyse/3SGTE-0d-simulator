@@ -12,6 +12,11 @@
 //   720° : PMH fin échappement
 
 import { STROKE } from "../Geometry/Geometry.js";
+import {
+    normalizeFourStrokeAngle,
+    smoothStep01
+} from "../Math/Utils.js";
+import { calculateValveFlowArea } from "./ValveGeometry.js";
 
 // Calage de travail
 
@@ -45,20 +50,11 @@ const EXHAUST_VALVE_HIGH_REYNOLDS_DISCHARGE_COEFFICIENT = 0.76;
 const EXHAUST_REYNOLDS_TRANSITION_START_MEAN_PISTON_SPEED = 11.5; // m/s
 const EXHAUST_REYNOLDS_TRANSITION_FULL_MEAN_PISTON_SPEED = 16.5; // m/s
 
-function clamp(value, minimum, maximum) {
-    return Math.max(minimum, Math.min(maximum, value));
-}
-
-function smoothStep01(value) {
-    const x = clamp(value, 0, 1);
-    return x * x * (3 - 2 * x);
-}
-
 /**
  * Correction continue du coefficient de décharge avec le développement de
  * l'écoulement turbulent dans les ports.
  */
-export function getExhaustValveDischargeCoefficient(rpm) {
+export function getExhaustValveDischargeCoefficient(rpm: number): number {
     const meanPistonSpeed = 2 * STROKE * Math.max(rpm, 0) / 60;
     const transition = smoothStep01(
         (meanPistonSpeed
@@ -81,9 +77,8 @@ export function getExhaustValveDischargeCoefficient(rpm) {
 /**
  * Indique si la soupape d'échappement est ouverte à l'angle local demandé.
  */
-export function isExhaustValveOpen(thetaLocal) {
-    const angle = ((thetaLocal % (4 * Math.PI)) + 4 * Math.PI)
-        % (4 * Math.PI);
+export function isExhaustValveOpen(thetaLocal: number): boolean {
+    const angle = normalizeFourStrokeAngle(thetaLocal);
 
     return angle >= EXHAUST_VALVE_OPEN_RAD
         && angle < EXHAUST_VALVE_CLOSE_RAD;
@@ -95,13 +90,12 @@ export function isExhaustValveOpen(thetaLocal) {
  * Une loi sin² est utilisée car elle est continue à l'ouverture et à la
  * fermeture, avec une vitesse de soupape nulle aux deux extrémités.
  */
-export function getExhaustValveLift(thetaLocal) {
+export function getExhaustValveLift(thetaLocal: number): number {
     if (!isExhaustValveOpen(thetaLocal)) {
         return 0;
     }
 
-    const angle = ((thetaLocal % (4 * Math.PI)) + 4 * Math.PI)
-        % (4 * Math.PI);
+    const angle = normalizeFourStrokeAngle(thetaLocal);
     const normalizedPhase = (
         angle - EXHAUST_VALVE_OPEN_RAD
     ) / EXHAUST_VALVE_DURATION_RAD;
@@ -119,22 +113,17 @@ export function getExhaustValveLift(thetaLocal) {
  * Cette aire est plafonnée par l'aire totale des cols de ports afin que la
  * section ne continue pas à augmenter artificiellement à grande levée.
  */
-export function getExhaustValveFlowArea(thetaLocal) {
+export function getExhaustValveFlowArea(thetaLocal: number): number {
     const lift = getExhaustValveLift(thetaLocal);
 
     if (lift <= 0) {
         return 0;
     }
 
-    const curtainArea = EXHAUST_VALVE_COUNT
-        * Math.PI
-        * EXHAUST_VALVE_DIAMETER
-        * lift;
-
-    const portThroatArea = EXHAUST_VALVE_COUNT
-        * Math.PI
-        * Math.pow(EXHAUST_PORT_DIAMETER, 2)
-        / 4;
-
-    return Math.min(curtainArea, portThroatArea);
+    return calculateValveFlowArea(
+        EXHAUST_VALVE_COUNT,
+        EXHAUST_VALVE_DIAMETER,
+        EXHAUST_PORT_DIAMETER,
+        lift
+    );
 }

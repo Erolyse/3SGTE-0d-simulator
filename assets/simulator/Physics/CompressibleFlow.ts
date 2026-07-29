@@ -3,23 +3,20 @@
 // Il reçoit simplement deux réservoirs de pression et une aire de passage.
 // Cela évite de recopier la même équation dans plusieurs composants.
 
-// Propriétés thermodynamiques de l'air
+import {
+    GAMMA_AIR,
+    R_AIR
+} from "./GasProperties.js";
 
-export const R_AIR = 287.05;   // J/(kg.K) — constante spécifique de l'air sec
-export const GAMMA_AIR = 1.40; // Cp/Cv — approximation à température modérée
-
-// Pour un gaz parfait : R = Cp - Cv et gamma = Cp / Cv.
-export const CV_AIR = R_AIR / (GAMMA_AIR - 1); // J/(kg.K)
-export const CP_AIR = GAMMA_AIR * CV_AIR;      // J/(kg.K)
-
-// Dans le cylindre, la charge devient un mélange d'air, de gaz résiduels et
-// de produits de combustion. Un gamma légèrement plus faible que celui de
-// l'air frais représente simplement l'augmentation des capacités thermiques
-// lorsque la température et la fraction de gaz brûlés augmentent.
-// Ces propriétés restent constantes dans le domaine de validité du modèle 0D.
-export const GAMMA_CYLINDER_GAS = 1.35;
-export const CV_CYLINDER_GAS = R_AIR / (GAMMA_CYLINDER_GAS - 1);
-export const CP_CYLINDER_GAS = CV_CYLINDER_GAS + R_AIR;
+export {
+    R_AIR,
+    GAMMA_AIR,
+    CV_AIR,
+    CP_AIR,
+    GAMMA_CYLINDER_GAS,
+    CV_CYLINDER_GAS,
+    CP_CYLINDER_GAS
+} from "./GasProperties.js";
 
 // Garde numérique commune à tous les calculs de débit.
 const MIN_TEMPERATURE = 1; // K
@@ -47,14 +44,14 @@ const MIN_PRESSURE = 1;    // Pa
  * @returns {number} Débit positif de l'amont vers l'aval, en kg/s
  */
 export function calculateOneWayCompressibleMassFlow(
-    upstreamPressure,
-    upstreamTemperature,
-    downstreamPressure,
-    flowArea,
-    dischargeCoefficient = 1,
-    gamma = GAMMA_AIR,
-    gasConstant = R_AIR
-) {
+    upstreamPressure: number,
+    upstreamTemperature: number,
+    downstreamPressure: number,
+    flowArea: number,
+    dischargeCoefficient: number = 1,
+    gamma: number = GAMMA_AIR,
+    gasConstant: number = R_AIR
+): number {
     const Pu = Math.max(upstreamPressure, MIN_PRESSURE);
     const Tu = Math.max(upstreamTemperature, MIN_TEMPERATURE);
     const Pd = Math.max(downstreamPressure, MIN_PRESSURE);
@@ -78,7 +75,7 @@ export function calculateOneWayCompressibleMassFlow(
         safeGamma / (safeGamma - 1)
     );
 
-    let dimensionlessFlowFunction;
+    let dimensionlessFlowFunction: number;
 
     if (pressureRatio <= criticalPressureRatio) {
         // Débit étranglé.
@@ -125,15 +122,15 @@ export function calculateOneWayCompressibleMassFlow(
  * @returns {number} Débit signé en kg/s
  */
 export function calculateBidirectionalCompressibleMassFlow(
-    pressureA,
-    temperatureA,
-    pressureB,
-    temperatureB,
-    flowArea,
-    dischargeCoefficient = 1,
-    gamma = GAMMA_AIR,
-    gasConstant = R_AIR
-) {
+    pressureA: number,
+    temperatureA: number,
+    pressureB: number,
+    temperatureB: number,
+    flowArea: number,
+    dischargeCoefficient: number = 1,
+    gamma: number = GAMMA_AIR,
+    gasConstant: number = R_AIR
+): number {
     if (pressureA > pressureB) {
         return calculateOneWayCompressibleMassFlow(
             pressureA,
