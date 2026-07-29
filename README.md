@@ -6,8 +6,7 @@
 
 Projet personnel conçu, intégré et vérifié par **Ludovic Steyer**.
 
-https://ludovicsteyer.com/enginesimulator
-
+**[ludovicsteyer.com](https://ludovicsteyer.com/enginesimulator)**
 </div>
 
 
@@ -24,7 +23,41 @@ https://ludovicsteyer.com/enginesimulator
 
 ---
 
+## ⚠️ Périmètre de ce dépôt
 
+Ce dépôt contient principalement le noyau de simulation numérique, les outils de vérification et la documentation technique du projet.
+
+La version interactive du simulateur est intégrée dans mon application web personnelle développée avec Symfony/Twig. Cette application complète n’est pas incluse dans ce dépôt.
+
+En conséquence, ce repository n’est pas conçu pour être exécuté directement comme une application web autonome.
+
+Certains fichiers, notamment `main.js` et `analysis.js`, dépendent d’éléments d’interface présents uniquement dans l’application Symfony, par exemple :
+
+- boutons de contrôle du moteur ;
+- éléments d’instrumentation ;
+- canvas Three.js ;
+- panneaux d’analyse ;
+- graphiques ;
+- sélecteurs et contrôles de l’interface.
+
+Ces éléments HTML/Twig ainsi que l’intégration Symfony correspondante ne sont volontairement pas publiés ici.
+
+En revanche, les modules physiques et numériques ainsi que la suite de vérification peuvent être examinés indépendamment. Les tests automatisés inclus dans ce dépôt permettent notamment de vérifier la géométrie, les sous-modules physiques, les scénarios transitoires et plusieurs propriétés numériques du simulateur.
+
+La démo interactive complète est disponible sur mon portfolio :
+
+**[ludovicsteyer.com](https://ludovicsteyer.com/enginesimulator)**
+
+Ce dépôt a donc principalement pour objectif de rendre accessibles :
+
+- la logique physique du simulateur ;
+- les méthodes numériques utilisées ;
+- l’architecture des différents sous-systèmes ;
+- les tests et protocoles de vérification ;
+- la provenance et la classification des paramètres ;
+- la documentation technique du modèle.
+
+---
 
 ## Objectif
 
