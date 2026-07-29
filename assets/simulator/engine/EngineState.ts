@@ -1,6 +1,10 @@
 // État partagé du modèle moteur 0D.
 
-export default class EngineState {
+import type { EngineStateData } from "./EngineStateTypes.js";
+
+export interface EngineState extends EngineStateData {}
+
+export class EngineState {
     constructor() {
         // Rotation moteur
         this.rpm = 0;
@@ -406,12 +410,28 @@ export default class EngineState {
         this.ignitionPhasingLimited = false; // correction analytique haute vitesse
         this.combustionDurationDeg = 50;       // durée courante de la loi de Wiebe
         this.combustionCA50DegAfterTdc = 0;    // centre de combustion, ° après PMH
+        this.combustionCA50TargetDegAfterTdc = 0; // cible contrôleur, ° après PMH
 
         // Coefficients de décharge réellement utilisés au pas courant.
         this.intakeValveDischargeCoefficient = 0.68;
         this.exhaustValveDischargeCoefficient = 0.70;
 
         // Diagnostics de conservation masse / énergie
+
+        // Configuration et capture interne des diagnostics de conservation.
+        this.conservationDiagnosticsStride = 1;
+        this._conservationCaptureActive = false;
+        this._conservationInitialCylinderMass = [0, 0, 0, 0];
+        this._conservationInitialCylinderEnergy = [0, 0, 0, 0];
+        this._conservationInitialIntakeMass = 0;
+        this._conservationInitialIntakeEnergy = 0;
+        this._conservationInitialChargeMass = 0;
+        this._conservationInitialChargeEnergy = 0;
+        this._conservationInitialExhaustMass = [0, 0];
+        this._conservationInitialExhaustEnergy = [0, 0];
+        this._conservationInitialExhaustWallEnergy = [0, 0];
+        this._conservationInitialTotalMass = 0;
+        this._conservationInitialTotalEnergy = 0;
 
         // Termes exacts accumulés pendant le sous-pas. Ils décrivent les flux
         // réellement appliqués par les modules, avant calcul des résidus.
@@ -531,6 +551,7 @@ export default class EngineState {
 
         // Ces valeurs sont renseignées par Engine.js et servent uniquement au
         // monitoring numérique. Elles n'interviennent jamais dans la physique.
+        this.angleSolverResolutionScale = 1;
         this.angleSolverBaseStepDeg = 0;
         this.angleSolverCombustionStepDeg = 0;
         this.angleSolverEventStepDeg = 0;
@@ -554,6 +575,7 @@ export default class EngineState {
 
         // Ces diagnostics décrivent uniquement l'enregistreur 60 Hz. Ils ne
         // participent jamais aux équations du moteur.
+        this.telemetryInputRateHz = 0;
         this.telemetryOutputRateHz = 0;
         this.telemetryHistorySeconds = 0;
         this.telemetryBufferCapacity = 0;
@@ -567,6 +589,8 @@ export default class EngineState {
         // Ces valeurs ne participent jamais aux équations. Elles décrivent le
         // dernier cycle complet publié par CycleRecorder.js.
         this.cycleRecorderEnabled = true;
+        this.cycleRecorderAngularStepDeg = 0;
+        this.cycleRecorderCaptureIntervalMs = 0;
         this.cycleRecorderCylinderIndex = 0;
         this.cycleRecorderBufferedCycles = 0;
         this.cycleRecorderCompletedCycles = 0;
@@ -586,3 +610,5 @@ export default class EngineState {
         this.throttle = 0; // 0 = fermé, 1 = grand ouvert
     }
 }
+
+export default EngineState;
