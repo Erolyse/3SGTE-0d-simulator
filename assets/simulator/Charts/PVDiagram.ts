@@ -13,6 +13,99 @@ import {
     EXHAUST_VALVE_OPEN_DEG
 } from "../Valvetrain/ExhaustValves.js";
 
+import type { EngineStateData } from "../engine/EngineStateTypes.js";
+import type {
+    ChartConstructorLike,
+    ChartInstanceLike
+} from "./ChartInterop.js";
+import type {
+    CycleRecorderLike,
+    RecordedCycle
+} from "./VisualizationTypes.js";
+
+interface PVSample {
+    angleDeg: number;
+    volumeM3: number;
+    pressurePa: number;
+    rpm: number;
+    boostBar: number;
+    throttle: number;
+    indicatedTorqueNm: number;
+    closedCycleTorqueNm: number;
+    pumpingTorqueNm: number;
+}
+
+interface PVCycleMetrics {
+    closedCycleWorkJ: number;
+    pumpingWorkJ: number;
+    netWorkJ: number;
+    grossImepBar: number;
+    signedPmepBar: number;
+    netImepBar: number;
+    torqueFromPVNm: number;
+    powerFromPVWatts: number;
+    powerFromPVHp: number;
+    meanRpm: number;
+    meanBoostBar: number;
+    meanThrottle: number;
+    meanIndicatedTorqueNm: number;
+    meanClosedCycleTorqueNm: number;
+    meanPumpingTorqueNm: number;
+    torqueConsistencyErrorPercent: number;
+    peakPressureBar: number;
+    peakPressureAngleDeg: number;
+    minimumVolumeCm3: number;
+    maximumVolumeCm3: number;
+}
+
+interface PVCycle {
+    id: number;
+    cylinderIndex: number;
+    angularStepDeg: number;
+    samples: PVSample[];
+    metrics: PVCycleMetrics;
+}
+
+type PVDiagramState = Pick<EngineStateData,
+| "crankAngle"
+| "cylinderVolumes"
+| "cylinderPressures"
+| "intakePressure"
+| "boost"
+| "rpm"
+| "throttle"
+| "indicatedTorque"
+| "closedCycleIndicatedTorque"
+| "pumpingTorque"
+>;
+
+interface PVDiagramElements {
+    chartCanvas: HTMLCanvasElement;
+    cylinderSelect: HTMLSelectElement | null;
+    freezeButton: HTMLButtonElement | null;
+    resumeButton: HTMLButtonElement | null;
+    exportButton: HTMLButtonElement | null;
+    zoomButton: HTMLButtonElement | null;
+    statusElement: HTMLElement | null;
+    rpmElement: HTMLElement | null;
+    boostElement: HTMLElement | null;
+    peakPressureElement: HTMLElement | null;
+    workElement: HTMLElement | null;
+    netImepElement: HTMLElement | null;
+    grossImepElement: HTMLElement | null;
+    pmepElement: HTMLElement | null;
+    torqueElement: HTMLElement | null;
+    consistencyElement: HTMLElement | null;
+    resolutionElement: HTMLElement | null;
+}
+
+export interface PVDiagramOptions extends PVDiagramElements {
+    cycleRecorder?: CycleRecorderLike | null;
+    angularStepDeg?: number;
+    chartRefreshIntervalMs?: number;
+    ChartClass?: ChartConstructorLike;
+}
+
 // Constantes
 
 const FULL_CYCLE_DEG = 720;
@@ -31,22 +124,22 @@ const EPSILON_ANGLE_DEG = 1e-9;
 
 // Outils généraux
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function finiteOr(value, fallback = 0) {
-    return Number.isFinite(value) ? value : fallback;
+function finiteOr(value: number | undefined, fallback = 0): number {
+    return Number.isFinite(value) ? value as number : fallback;
 }
 
-function normalizeCycleAngleDeg(angleDeg) {
+function normalizeCycleAngleDeg(angleDeg: number): number {
     return (
         (angleDeg % FULL_CYCLE_DEG)
         + FULL_CYCLE_DEG
     ) % FULL_CYCLE_DEG;
 }
 
-function mean(values) {
+function mean(values: readonly number[]): number {
     if (!Array.isArray(values) || values.length === 0) {
         return 0;
     }
@@ -60,11 +153,11 @@ function mean(values) {
     return sum / values.length;
 }
 
-function interpolateLinear(a, b, ratio) {
+function interpolateLinear(a: number, b: number, ratio: number): number {
     return a + (b - a) * ratio;
 }
 
-function formatNumber(value, decimals = 2) {
+function formatNumber(value: number, decimals = 2): string {
     if (!Number.isFinite(value)) {
         return "—";
     }
@@ -72,7 +165,11 @@ function formatNumber(value, decimals = 2) {
     return value.toFixed(decimals);
 }
 
-function downloadTextFile(filename, content, mimeType = "text/plain") {
+function downloadTextFile(
+    filename: string,
+    content: string,
+    mimeType = "text/plain"
+): void {
     const blob = new Blob(
         [content],
         { type: `${mimeType};charset=utf-8` }
@@ -102,15 +199,15 @@ function downloadTextFile(filename, content, mimeType = "text/plain") {
  * Le tableau brut doit couvrir au minimum l'intervalle 0 → 720°.
  */
 function resampleCycleAtFixedAngle(
-    rawSamples,
-    angularStepDeg
-) {
+    rawSamples: readonly PVSample[],
+    angularStepDeg: number
+): PVSample[] | null {
     if (!Array.isArray(rawSamples) || rawSamples.length < 2) {
         return null;
     }
 
     // Suppression des angles dupliqués ou non strictement croissants.
-    const cleanedSamples = [];
+    const cleanedSamples: PVSample[] = [];
 
     for (const sample of rawSamples) {
         if (!Number.isFinite(sample.angleDeg)) {
@@ -145,7 +242,7 @@ function resampleCycleAtFixedAngle(
     }
 
     const firstAngle = cleanedSamples[0].angleDeg;
-    const lastAngle = cleanedSamples.at(-1).angleDeg;
+    const lastAngle = cleanedSamples[cleanedSamples.length - 1].angleDeg;
 
     // Le premier cycle capturé après le lancement peut être incomplet.
     if (firstAngle > 0 || lastAngle < FULL_CYCLE_DEG) {
@@ -156,7 +253,7 @@ function resampleCycleAtFixedAngle(
         FULL_CYCLE_DEG / angularStepDeg
     );
 
-    const resampled = [];
+    const resampled: PVSample[] = [];
     let sourceIndex = 0;
 
     for (
@@ -256,7 +353,7 @@ function resampleCycleAtFixedAngle(
 
 // Intégration P dv
 
-function isClosedCycleAngle(angleDeg) {
+function isClosedCycleAngle(angleDeg: number): boolean {
     return angleDeg >= INTAKE_VALVE_CLOSE_DEG
         && angleDeg < EXHAUST_VALVE_OPEN_DEG;
 }
@@ -268,7 +365,11 @@ function isClosedCycleAngle(angleDeg) {
  * W_fermé = intégrale de IVC à EVO
  * W_pompage = intégrale sur les phases ouvertes
  */
-function integratePVWork(samples) {
+function integratePVWork(samples: readonly PVSample[]): {
+    closedCycleWorkJ: number;
+    pumpingWorkJ: number;
+    netWorkJ: number;
+} {
     let closedCycleWorkJ = 0;
     let pumpingWorkJ = 0;
 
@@ -311,7 +412,9 @@ function integratePVWork(samples) {
 
 // Calcul des métriques
 
-function calculateCycleMetrics(samples) {
+function calculateCycleMetrics(
+    samples: readonly PVSample[]
+): PVCycleMetrics | null {
     if (!Array.isArray(samples) || samples.length < 2) {
         return null;
     }
@@ -454,7 +557,7 @@ function calculateCycleMetrics(samples) {
     };
 }
 
-function getConsistencyLabel(errorPercent) {
+function getConsistencyLabel(errorPercent: number): string {
     if (!Number.isFinite(errorPercent)) {
         return "Indisponible";
     }
@@ -477,6 +580,26 @@ function getConsistencyLabel(errorPercent) {
 // Contrôleur du diagramme P-V
 
 export default class PVDiagram {
+    readonly ChartClass: ChartConstructorLike;
+    readonly cycleRecorder: CycleRecorderLike | null;
+    visible = true;
+    pendingRecordedCycle: RecordedCycle | null = null;
+    readonly elements: PVDiagramElements;
+    readonly angularStepDeg: number;
+    readonly chartRefreshIntervalMs: number;
+    selectedCylinderIndex: number;
+    rawCycleSamples: PVSample[] = [];
+    previousSample: PVSample | null = null;
+    latestCycle: PVCycle | null = null;
+    displayedCycle: PVCycle | null = null;
+    completedCycleCount = 0;
+    isFrozen = false;
+    isPumpingZoomEnabled = false;
+    lastChartRenderTime = 0;
+    pendingRenderTimeout: number | null = null;
+    readonly chart: ChartInstanceLike;
+    unsubscribeCycleRecorder: (() => void) | null = null;
+
     constructor({
                     chartCanvas,
                     cylinderSelect,
@@ -503,7 +626,7 @@ export default class PVDiagram {
                     DEFAULT_CHART_REFRESH_INTERVAL_MS,
 
                     ChartClass = globalThis.Chart
-                }) {
+                }: PVDiagramOptions) {
         if (!ChartClass) {
             throw new Error(
                 "Chart.js est introuvable. Charge Chart.js avant PVDiagram.js."
@@ -581,7 +704,7 @@ export default class PVDiagram {
 
     // Lecture de l'interface
 
-    getSelectedCylinderIndex() {
+    getSelectedCylinderIndex(): number {
         const rawValue = Number(
             this.elements.cylinderSelect?.value ?? 0
         );
@@ -593,13 +716,13 @@ export default class PVDiagram {
         );
     }
 
-    setText(element, value) {
+    setText(element: HTMLElement | null, value: string): void {
         if (element) {
             element.textContent = value;
         }
     }
 
-    updateStatus(message) {
+    updateStatus(message: string): void {
         this.setText(
             this.elements.statusElement,
             message
@@ -608,7 +731,7 @@ export default class PVDiagram {
 
     // Gestion des boutons
 
-    bindInterface() {
+    bindInterface(): void {
         this.elements.cylinderSelect?.addEventListener(
             "change",
             () => {
@@ -659,9 +782,12 @@ export default class PVDiagram {
 
     // Création du graphique
 
-    createChart() {
+    createChart(): ChartInstanceLike {
         const context =
             this.elements.chartCanvas.getContext("2d");
+        if (!context) {
+            throw new Error("Contexte 2D indisponible pour le diagramme P-V.");
+        }
 
         return new this.ChartClass(context, {
             type: "scatter",
@@ -686,7 +812,7 @@ export default class PVDiagram {
                         backgroundColor: "#f5f5f5",
 
                         segment: {
-                            borderColor: context => {
+                            borderColor: (context: any) => {
                                 const angle =
                                     context.p0.raw?.angleDeg
                                     ?? 0;
@@ -797,7 +923,7 @@ export default class PVDiagram {
 
     // Réutilisation du cyclerecorder partagé
 
-    ingestRecordedCycle(cycle) {
+    ingestRecordedCycle(cycle: RecordedCycle): void {
         if (!cycle || !Array.isArray(cycle.samples)
             || cycle.samples.length < 2) {
             return;
@@ -820,7 +946,7 @@ export default class PVDiagram {
             );
         }
 
-        const rawSamples = new Array(cycle.samples.length);
+        const rawSamples: PVSample[] = new Array(cycle.samples.length);
         for (let index = 0; index < cycle.samples.length; index++) {
             const sample = cycle.samples[index];
             rawSamples[index] = {
@@ -839,7 +965,7 @@ export default class PVDiagram {
         this.finalizeRawCycle(rawSamples);
     }
 
-    setVisible(visible) {
+    setVisible(visible: boolean): void {
         this.visible = Boolean(visible);
         if (!this.visible) {
             return;
@@ -858,7 +984,7 @@ export default class PVDiagram {
     /**
      * À appeler immédiatement après motor.update(DT).
      */
-    sample(state) {
+    sample(state: PVDiagramState | null | undefined): void {
         const cylinderIndex =
             this.selectedCylinderIndex;
 
@@ -1027,431 +1153,431 @@ export default class PVDiagram {
 
     // Finalisation d'un cycle
 
-    finalizeRawCycle(rawSamples) {
-        const samples = resampleCycleAtFixedAngle(
-            rawSamples,
-            this.angularStepDeg
-        );
-
-        // Le premier cycle après une réinitialisation peut être incomplet.
-        if (!samples) {
-            return;
-        }
-
-        const metrics =
-            calculateCycleMetrics(samples);
-
-        if (!metrics) {
-            return;
-        }
-
-        this.completedCycleCount++;
-
-        const cycle = {
-            id: this.completedCycleCount,
-
-            cylinderIndex:
-            this.selectedCylinderIndex,
-
-            angularStepDeg:
-            this.angularStepDeg,
-
-            samples,
-            metrics
-        };
-
-        this.latestCycle = cycle;
-
-        if (!this.isFrozen) {
-            this.displayedCycle = cycle;
-            this.scheduleRender();
-        }
-    }
-
-    // Affichage
-
-    scheduleRender() {
-        if (!this.visible) {
-            return;
-        }
-
-        const now = performance.now();
-
-        const elapsed =
-            now - this.lastChartRenderTime;
-
-        if (
-            elapsed
-            >= this.chartRefreshIntervalMs
-        ) {
-            this.renderDisplayedCycle();
-            return;
-        }
-
-        if (this.pendingRenderTimeout !== null) {
-            return;
-        }
-
-        const delay =
-            this.chartRefreshIntervalMs - elapsed;
-
-        this.pendingRenderTimeout =
-            window.setTimeout(
-                () => {
-                    this.pendingRenderTimeout = null;
-                    this.renderDisplayedCycle();
-                },
-                delay
-            );
-    }
-
-    renderDisplayedCycle() {
-        const cycle = this.displayedCycle;
-
-        if (!this.visible || !cycle) {
-            return;
-        }
-
-        this.lastChartRenderTime =
-            performance.now();
-
-        const chartPoints = cycle.samples.map(
-            sample => ({
-                x: sample.volumeM3 * M3_TO_CM3,
-                y: sample.pressurePa * PASCAL_TO_BAR,
-
-                angleDeg: sample.angleDeg
-            })
-        );
-
-        this.chart.data.datasets[0].data =
-            chartPoints;
-
-        this.chart.options.plugins.title.text = [
-            `Diagramme P–V — cylindre ${
-                cycle.cylinderIndex + 1
-            }`,
-
-            `${
-                Math.round(cycle.metrics.meanRpm)
-            } tr/min — ${
-                cycle.metrics.meanBoostBar.toFixed(2)
-            } bar de boost`
-        ];
-
-        if (this.isPumpingZoomEnabled) {
-            this.chart.options.scales.y.max = 5;
-            this.chart.options.scales.y.title.text =
-                "Pression absolue — zoom pompage (bar)";
-        } else {
-            delete this.chart.options.scales.y.max;
-
-            this.chart.options.scales.y.title.text =
-                "Pression cylindre absolue (bar)";
-        }
-
-        this.chart.update("none");
-
-        this.renderMetrics(cycle);
-    }
-
-    renderMetrics(cycle) {
-        const metrics = cycle.metrics;
-
-        const modeText = this.isFrozen
-            ? `Cycle figé #${cycle.id}`
-            : `Suivi direct — cycle #${cycle.id}`;
-
-        this.updateStatus(modeText);
-
-        this.setText(
-            this.elements.rpmElement,
-            `${Math.round(metrics.meanRpm)} tr/min`
-        );
-
-        this.setText(
-            this.elements.boostElement,
-            `${formatNumber(
-                metrics.meanBoostBar,
-                2
-            )} bar`
-        );
-
-        this.setText(
-            this.elements.peakPressureElement,
-            `${
-                formatNumber(
-                    metrics.peakPressureBar,
-                    1
-                )
-            } bar à ${
-                formatNumber(
-                    metrics.peakPressureAngleDeg,
-                    1
-                )
-            }°`
-        );
-
-        this.setText(
-            this.elements.workElement,
-            `${formatNumber(
-                metrics.netWorkJ,
-                1
-            )} J/cyl./cycle`
-        );
-
-        this.setText(
-            this.elements.netImepElement,
-            `${formatNumber(
-                metrics.netImepBar,
-                2
-            )} bar`
-        );
-
-        this.setText(
-            this.elements.grossImepElement,
-            `${formatNumber(
-                metrics.grossImepBar,
-                2
-            )} bar`
-        );
-
-        this.setText(
-            this.elements.pmepElement,
-            `${formatNumber(
-                metrics.signedPmepBar,
-                2
-            )} bar`
-        );
-
-        this.setText(
-            this.elements.torqueElement,
-            `${
-                formatNumber(
-                    metrics.torqueFromPVNm,
-                    1
-                )
-            } N·m — ${
-                formatNumber(
-                    metrics.powerFromPVHp,
-                    1
-                )
-            } ch indiqués`
-        );
-
-        const consistencyLabel =
-            getConsistencyLabel(
-                metrics.torqueConsistencyErrorPercent
-            );
-
-        this.setText(
-            this.elements.consistencyElement,
-            `${
-                formatNumber(
-                    metrics.torqueConsistencyErrorPercent,
-                    2
-                )
-            } % — ${consistencyLabel}`
-        );
-
-        this.setText(
-            this.elements.resolutionElement,
-            `${
-                cycle.samples.length
-            } points à ${
-                cycle.angularStepDeg
-            }°`
-        );
-    }
-
-    // Commandes publiques
-
-    freeze() {
-        if (!this.latestCycle) {
-            this.updateStatus(
-                "Aucun cycle complet disponible."
-            );
-
-            return;
-        }
-
-        this.isFrozen = true;
-        this.displayedCycle =
-            this.latestCycle;
-
-        this.renderDisplayedCycle();
-    }
-
-    resumeLive() {
-        this.isFrozen = false;
-
-        if (this.latestCycle) {
-            this.displayedCycle =
-                this.latestCycle;
-
-            this.renderDisplayedCycle();
-        } else {
-            this.updateStatus(
-                "Suivi direct activé — attente d'un cycle complet…"
-            );
-        }
-    }
-
-    togglePumpingZoom() {
-        this.isPumpingZoomEnabled =
-            !this.isPumpingZoomEnabled;
-
-        this.setText(
-            this.elements.zoomButton,
-            this.isPumpingZoomEnabled
-                ? "Vue cycle complet"
-                : "Zoom boucle de pompage"
-        );
-
-        this.renderDisplayedCycle();
-    }
-
-    resetCapture() {
-        this.rawCycleSamples = [];
-        this.previousSample = null;
-
-        this.latestCycle = null;
-        this.displayedCycle = null;
-
-        this.completedCycleCount = 0;
-        this.isFrozen = false;
-
-        this.chart.data.datasets[0].data = [];
-        this.chart.update("none");
-    }
-
-    exportDisplayedCycleCsv() {
-        const cycle = this.displayedCycle;
-
-        if (!cycle) {
-            this.updateStatus(
-                "Aucun cycle à exporter."
-            );
-
-            return;
-        }
-
-        const metrics = cycle.metrics;
-
-        const lines = [
-            `# Cylindre;${
-                cycle.cylinderIndex + 1
-            }`,
-
-            `# Régime moyen;${
-                metrics.meanRpm.toFixed(3)
-            };tr/min`,
-
-            `# Boost moyen;${
-                metrics.meanBoostBar.toFixed(6)
-            };bar relatif`,
-
-            `# Travail net P-V;${
-                metrics.netWorkJ.toFixed(6)
-            };J/cylindre/cycle`,
-
-            `# IMEP net;${
-                metrics.netImepBar.toFixed(6)
-            };bar`,
-
-            `# IMEP cycle fermé;${
-                metrics.grossImepBar.toFixed(6)
-            };bar`,
-
-            `# PMEP signé;${
-                metrics.signedPmepBar.toFixed(6)
-            };bar`,
-
-            `# Couple indiqué depuis P-V;${
-                metrics.torqueFromPVNm.toFixed(6)
-            };N.m`,
-
-            `# Couple indiqué moyen du moteur;${
-                metrics.meanIndicatedTorqueNm.toFixed(6)
-            };N.m`,
-
-            `# Erreur de cohérence;${
-                metrics.torqueConsistencyErrorPercent.toFixed(6)
-            };%`,
-
-            "",
-
-            [
-                "angle_deg",
-                "volume_m3",
-                "volume_cm3",
-                "pression_pa",
-                "pression_bar_abs",
-                "rpm",
-                "boost_bar_rel",
-                "throttle",
-                "indicated_torque_nm",
-                "closed_cycle_torque_nm",
-                "pumping_torque_nm"
-            ].join(";")
-        ];
-
-        for (const sample of cycle.samples) {
-            lines.push([
-                sample.angleDeg.toFixed(3),
-
-                sample.volumeM3.toExponential(12),
-
-                (
-                    sample.volumeM3
-                    * M3_TO_CM3
-                ).toFixed(6),
-
-                sample.pressurePa.toFixed(6),
-
-                (
-                    sample.pressurePa
-                    * PASCAL_TO_BAR
-                ).toFixed(6),
-
-                sample.rpm.toFixed(6),
-
-                sample.boostBar.toFixed(6),
-
-                sample.throttle.toFixed(6),
-
-                sample.indicatedTorqueNm.toFixed(6),
-
-                sample.closedCycleTorqueNm.toFixed(6),
-
-                sample.pumpingTorqueNm.toFixed(6)
-            ].join(";"));
-        }
-
-        const filename = [
-            "cycle-pv",
-            `cylindre-${cycle.cylinderIndex + 1}`,
-            `${Math.round(metrics.meanRpm)}rpm`,
-            `cycle-${cycle.id}.csv`
-        ].join("-");
-
-        downloadTextFile(
-            filename,
-            lines.join("\n"),
-            "text/csv"
-        );
-    }
-
-    destroy() {
-        if (this.pendingRenderTimeout !== null) {
-            clearTimeout(
-                this.pendingRenderTimeout
-            );
+    finalizeRawCycle(rawSamples: readonly PVSample[]): void {
+    const samples = resampleCycleAtFixedAngle(
+        rawSamples,
+        this.angularStepDeg
+    );
 
+    // Le premier cycle après une réinitialisation peut être incomplet.
+    if (!samples) {
+    return;
+}
+
+const metrics =
+    calculateCycleMetrics(samples);
+
+if (!metrics) {
+    return;
+}
+
+this.completedCycleCount++;
+
+const cycle = {
+    id: this.completedCycleCount,
+
+    cylinderIndex:
+    this.selectedCylinderIndex,
+
+    angularStepDeg:
+    this.angularStepDeg,
+
+    samples,
+    metrics
+};
+
+this.latestCycle = cycle;
+
+if (!this.isFrozen) {
+    this.displayedCycle = cycle;
+    this.scheduleRender();
+}
+}
+
+// Affichage
+
+scheduleRender(): void {
+    if (!this.visible) {
+    return;
+}
+
+const now = performance.now();
+
+const elapsed =
+    now - this.lastChartRenderTime;
+
+if (
+    elapsed
+    >= this.chartRefreshIntervalMs
+) {
+    this.renderDisplayedCycle();
+    return;
+}
+
+if (this.pendingRenderTimeout !== null) {
+    return;
+}
+
+const delay =
+    this.chartRefreshIntervalMs - elapsed;
+
+this.pendingRenderTimeout =
+    window.setTimeout(
+        () => {
             this.pendingRenderTimeout = null;
-        }
+            this.renderDisplayedCycle();
+        },
+        delay
+    );
+}
 
-        this.unsubscribeCycleRecorder?.();
-        this.chart?.destroy();
-    }
+renderDisplayedCycle(): void {
+    const cycle = this.displayedCycle;
+
+    if (!this.visible || !cycle) {
+    return;
+}
+
+this.lastChartRenderTime =
+    performance.now();
+
+const chartPoints = cycle.samples.map(
+    sample => ({
+        x: sample.volumeM3 * M3_TO_CM3,
+        y: sample.pressurePa * PASCAL_TO_BAR,
+
+        angleDeg: sample.angleDeg
+    })
+);
+
+this.chart.data.datasets[0].data =
+    chartPoints;
+
+this.chart.options.plugins.title.text = [
+    `Diagramme P–V — cylindre ${
+        cycle.cylinderIndex + 1
+    }`,
+
+    `${
+        Math.round(cycle.metrics.meanRpm)
+    } tr/min — ${
+        cycle.metrics.meanBoostBar.toFixed(2)
+    } bar de boost`
+];
+
+if (this.isPumpingZoomEnabled) {
+    this.chart.options.scales.y.max = 5;
+    this.chart.options.scales.y.title.text =
+        "Pression absolue — zoom pompage (bar)";
+} else {
+    delete this.chart.options.scales.y.max;
+
+    this.chart.options.scales.y.title.text =
+        "Pression cylindre absolue (bar)";
+}
+
+this.chart.update("none");
+
+this.renderMetrics(cycle);
+}
+
+renderMetrics(cycle: PVCycle): void {
+    const metrics = cycle.metrics;
+
+    const modeText = this.isFrozen
+        ? `Cycle figé #${cycle.id}`
+        : `Suivi direct — cycle #${cycle.id}`;
+
+    this.updateStatus(modeText);
+
+    this.setText(
+        this.elements.rpmElement,
+        `${Math.round(metrics.meanRpm)} tr/min`
+    );
+
+    this.setText(
+        this.elements.boostElement,
+        `${formatNumber(
+            metrics.meanBoostBar,
+            2
+        )} bar`
+    );
+
+    this.setText(
+        this.elements.peakPressureElement,
+        `${
+            formatNumber(
+                metrics.peakPressureBar,
+                1
+            )
+        } bar à ${
+            formatNumber(
+                metrics.peakPressureAngleDeg,
+                1
+            )
+        }°`
+    );
+
+    this.setText(
+        this.elements.workElement,
+        `${formatNumber(
+            metrics.netWorkJ,
+            1
+        )} J/cyl./cycle`
+    );
+
+    this.setText(
+        this.elements.netImepElement,
+        `${formatNumber(
+            metrics.netImepBar,
+            2
+        )} bar`
+    );
+
+    this.setText(
+        this.elements.grossImepElement,
+        `${formatNumber(
+            metrics.grossImepBar,
+            2
+        )} bar`
+    );
+
+    this.setText(
+        this.elements.pmepElement,
+        `${formatNumber(
+            metrics.signedPmepBar,
+            2
+        )} bar`
+    );
+
+    this.setText(
+        this.elements.torqueElement,
+        `${
+            formatNumber(
+                metrics.torqueFromPVNm,
+                1
+            )
+        } N·m — ${
+            formatNumber(
+                metrics.powerFromPVHp,
+                1
+            )
+        } ch indiqués`
+    );
+
+    const consistencyLabel =
+        getConsistencyLabel(
+            metrics.torqueConsistencyErrorPercent
+        );
+
+    this.setText(
+        this.elements.consistencyElement,
+        `${
+            formatNumber(
+                metrics.torqueConsistencyErrorPercent,
+                2
+            )
+        } % — ${consistencyLabel}`
+    );
+
+    this.setText(
+        this.elements.resolutionElement,
+        `${
+            cycle.samples.length
+        } points à ${
+            cycle.angularStepDeg
+        }°`
+    );
+}
+
+// Commandes publiques
+
+freeze(): void {
+    if (!this.latestCycle) {
+    this.updateStatus(
+        "Aucun cycle complet disponible."
+    );
+
+    return;
+}
+
+this.isFrozen = true;
+this.displayedCycle =
+    this.latestCycle;
+
+this.renderDisplayedCycle();
+}
+
+resumeLive(): void {
+    this.isFrozen = false;
+
+    if (this.latestCycle) {
+    this.displayedCycle =
+        this.latestCycle;
+
+    this.renderDisplayedCycle();
+} else {
+    this.updateStatus(
+        "Suivi direct activé — attente d'un cycle complet…"
+    );
+}
+}
+
+togglePumpingZoom(): void {
+    this.isPumpingZoomEnabled =
+        !this.isPumpingZoomEnabled;
+
+    this.setText(
+        this.elements.zoomButton,
+        this.isPumpingZoomEnabled
+            ? "Vue cycle complet"
+            : "Zoom boucle de pompage"
+    );
+
+    this.renderDisplayedCycle();
+}
+
+resetCapture(): void {
+    this.rawCycleSamples = [];
+    this.previousSample = null;
+
+    this.latestCycle = null;
+    this.displayedCycle = null;
+
+    this.completedCycleCount = 0;
+    this.isFrozen = false;
+
+    this.chart.data.datasets[0].data = [];
+    this.chart.update("none");
+}
+
+exportDisplayedCycleCsv(): void {
+    const cycle = this.displayedCycle;
+
+    if (!cycle) {
+    this.updateStatus(
+        "Aucun cycle à exporter."
+    );
+
+    return;
+}
+
+const metrics = cycle.metrics;
+
+const lines = [
+    `# Cylindre;${
+        cycle.cylinderIndex + 1
+    }`,
+
+    `# Régime moyen;${
+        metrics.meanRpm.toFixed(3)
+    };tr/min`,
+
+    `# Boost moyen;${
+        metrics.meanBoostBar.toFixed(6)
+    };bar relatif`,
+
+    `# Travail net P-V;${
+        metrics.netWorkJ.toFixed(6)
+    };J/cylindre/cycle`,
+
+    `# IMEP net;${
+        metrics.netImepBar.toFixed(6)
+    };bar`,
+
+    `# IMEP cycle fermé;${
+        metrics.grossImepBar.toFixed(6)
+    };bar`,
+
+    `# PMEP signé;${
+        metrics.signedPmepBar.toFixed(6)
+    };bar`,
+
+    `# Couple indiqué depuis P-V;${
+        metrics.torqueFromPVNm.toFixed(6)
+    };N.m`,
+
+    `# Couple indiqué moyen du moteur;${
+        metrics.meanIndicatedTorqueNm.toFixed(6)
+    };N.m`,
+
+    `# Erreur de cohérence;${
+        metrics.torqueConsistencyErrorPercent.toFixed(6)
+    };%`,
+
+    "",
+
+    [
+        "angle_deg",
+        "volume_m3",
+        "volume_cm3",
+        "pression_pa",
+        "pression_bar_abs",
+        "rpm",
+        "boost_bar_rel",
+        "throttle",
+        "indicated_torque_nm",
+        "closed_cycle_torque_nm",
+        "pumping_torque_nm"
+    ].join(";")
+];
+
+for (const sample of cycle.samples) {
+    lines.push([
+        sample.angleDeg.toFixed(3),
+
+        sample.volumeM3.toExponential(12),
+
+        (
+            sample.volumeM3
+            * M3_TO_CM3
+        ).toFixed(6),
+
+        sample.pressurePa.toFixed(6),
+
+        (
+            sample.pressurePa
+            * PASCAL_TO_BAR
+        ).toFixed(6),
+
+        sample.rpm.toFixed(6),
+
+        sample.boostBar.toFixed(6),
+
+        sample.throttle.toFixed(6),
+
+        sample.indicatedTorqueNm.toFixed(6),
+
+        sample.closedCycleTorqueNm.toFixed(6),
+
+        sample.pumpingTorqueNm.toFixed(6)
+    ].join(";"));
+}
+
+const filename = [
+    "cycle-pv",
+    `cylindre-${cycle.cylinderIndex + 1}`,
+    `${Math.round(metrics.meanRpm)}rpm`,
+    `cycle-${cycle.id}.csv`
+].join("-");
+
+downloadTextFile(
+    filename,
+    lines.join("\n"),
+    "text/csv"
+);
+}
+
+destroy(): void {
+    if (this.pendingRenderTimeout !== null) {
+    clearTimeout(
+        this.pendingRenderTimeout
+    );
+
+    this.pendingRenderTimeout = null;
+}
+
+this.unsubscribeCycleRecorder?.();
+this.chart?.destroy();
+}
 }

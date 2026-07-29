@@ -3,31 +3,48 @@
 // CycleRecorder.js. Il ne lit jamais directement les sous-pas du moteur et ne
 // peut donc ni ralentir ni modifier la simulation physique.
 
+import type {
+    ChartConstructorLike,
+    ChartDatasetLike,
+    ChartInstanceLike,
+    ChartPluginContextLike,
+    XYPoint
+} from "./ChartInterop.js";
+import type {
+    CycleRecorderLike,
+    RecordedCycle
+} from "./VisualizationTypes.js";
+
 const PA_PER_BAR = 100000;
 const METERS_TO_MILLIMETERS = 1000;
 const PA_PER_BAR_IMEP = 100000;
 const CYCLE_CHART_REFRESH_INTERVAL_MS = 300; // ~3 Hz maximum
 
-function finite(value, fallback = 0) {
-    return Number.isFinite(value) ? value : fallback;
+function finite(value: number | undefined, fallback = 0): number {
+    return Number.isFinite(value) ? value as number : fallback;
 }
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function getCanvas(id) {
+function getCanvas(id: string): HTMLCanvasElement | null {
     const canvas = document.getElementById(id);
     return canvas instanceof HTMLCanvasElement ? canvas : null;
 }
 
-function setText(element, text) {
+function setText(element: HTMLElement | null, text: string): void {
     if (element) {
         element.textContent = text;
     }
 }
 
-function lineDataset(label, yAxisID, color, extra = {}) {
+function lineDataset(
+    label: string,
+    yAxisID: string,
+    color: string,
+    extra: Record<string, unknown> = {}
+): ChartDatasetLike<XYPoint> {
     return {
         label,
         data: [],
@@ -51,7 +68,13 @@ function lineDataset(label, yAxisID, color, extra = {}) {
  * - distribution échappement ;
  * - repères géométriques PMH / PMB.
  */
-function buildEventMarkers(cycle) {
+function buildEventMarkers(cycle: RecordedCycle): Array<{
+    angle: number;
+    label: string;
+    color: string;
+    dash?: number[];
+    width?: number;
+}> {
     const events = cycle?.events ?? {};
 
     return [
@@ -72,7 +95,12 @@ function buildEventMarkers(cycle) {
     ].filter(marker => Number.isFinite(marker.angle));
 }
 
-function buildPhaseRanges(cycle) {
+function buildPhaseRanges(cycle: RecordedCycle): Array<{
+    start: number;
+    end: number;
+    label: string;
+    color: string;
+}> {
     const events = cycle?.events ?? {};
     const ivc = clamp(finite(events.intakeValveCloseDeg, 245), 0, 360);
     const evo = clamp(finite(events.exhaustValveOpenDeg, 500), 360, 720);
@@ -112,7 +140,11 @@ function buildPhaseRanges(cycle) {
 const cycleEventPlugin = {
     id: "cycle720Events",
 
-    beforeDraw(chart, _args, options) {
+    beforeDraw(
+        chart: ChartPluginContextLike,
+        _args: unknown,
+        options: { cycle?: RecordedCycle | null }
+    ): void {
         const cycle = options?.cycle;
         const xScale = chart.scales.x;
         const chartArea = chart.chartArea;
@@ -140,7 +172,11 @@ const cycleEventPlugin = {
         context.restore();
     },
 
-    afterDatasetsDraw(chart, _args, options) {
+    afterDatasetsDraw(
+        chart: ChartPluginContextLike,
+        _args: unknown,
+        options: { cycle?: RecordedCycle | null }
+    ): void {
         const cycle = options?.cycle;
         const xScale = chart.scales.x;
         const chartArea = chart.chartArea;
@@ -186,7 +222,10 @@ const cycleEventPlugin = {
     }
 };
 
-function createChart(Chart, canvas) {
+function createChart(
+    Chart: ChartConstructorLike,
+    canvas: HTMLCanvasElement
+): ChartInstanceLike {
     return new Chart(canvas, {
         type: "line",
         plugins: [cycleEventPlugin],
@@ -248,13 +287,13 @@ function createChart(Chart, canvas) {
                     mode: "index",
                     intersect: false,
                     callbacks: {
-                        title(items) {
+                        title(items: any[]) {
                             const angle = items?.[0]?.parsed?.x;
                             return Number.isFinite(angle)
                                 ? `${angle.toFixed(1)}° vilebrequin`
                                 : "";
                         },
-                        label(context) {
+                        label(context: any) {
                             const value = context.parsed.y;
                             const axis = context.dataset.yAxisID;
 
@@ -286,7 +325,7 @@ function createChart(Chart, canvas) {
                     ticks: {
                         color: "#cfcfcf",
                         stepSize: 90,
-                        callback(value) {
+                        callback(value: number | string) {
                             return `${value}°`;
                         }
                     },
@@ -341,7 +380,7 @@ function createChart(Chart, canvas) {
                     },
                     ticks: {
                         color: "#d7a6ff",
-                        callback(value) {
+                        callback(value: number | string) {
                             return `${value} mm`;
                         }
                     },
@@ -356,8 +395,34 @@ function createChart(Chart, canvas) {
     });
 }
 
+export interface CylinderCycleChartOptions {
+    Chart: ChartConstructorLike;
+    cycleRecorder: CycleRecorderLike;
+}
+
 export default class CylinderCycleChart {
-    constructor({ Chart, cycleRecorder }) {
+    readonly cycleRecorder: CycleRecorderLike;
+    live = true;
+    latestDisplayedCycle: RecordedCycle | null = null;
+    pendingCycle: RecordedCycle | null = null;
+    lastRefreshTime = 0;
+    visible = true;
+
+    readonly canvas: HTMLCanvasElement | null;
+    readonly chart: ChartInstanceLike | null;
+    readonly cylinderSelect: HTMLSelectElement | null;
+    readonly liveButton: HTMLButtonElement | null;
+    readonly exportButton: HTMLButtonElement | null;
+    readonly status: HTMLElement | null;
+    readonly meanRpm: HTMLElement | null;
+    readonly meanBoost: HTMLElement | null;
+    readonly peakPressure: HTMLElement | null;
+    readonly ca50: HTMLElement | null;
+    readonly netImep: HTMLElement | null;
+    readonly sampleCount: HTMLElement | null;
+    unsubscribe: (() => void) | null = null;
+
+    constructor({ Chart, cycleRecorder }: CylinderCycleChartOptions) {
         if (typeof Chart !== "function") {
             throw new TypeError("Chart.js n'est pas disponible.");
         }
@@ -375,9 +440,9 @@ export default class CylinderCycleChart {
         this.canvas = getCanvas("cylinderCycleChart");
         this.chart = this.canvas ? createChart(Chart, this.canvas) : null;
 
-        this.cylinderSelect = document.getElementById("cycleCylinderSelect");
-        this.liveButton = document.getElementById("cycleLiveButton");
-        this.exportButton = document.getElementById("cycleExportButton");
+        this.cylinderSelect = document.getElementById("cycleCylinderSelect") as HTMLSelectElement | null;
+        this.liveButton = document.getElementById("cycleLiveButton") as HTMLButtonElement | null;
+        this.exportButton = document.getElementById("cycleExportButton") as HTMLButtonElement | null;
         this.status = document.getElementById("cycleCaptureStatus");
 
         this.meanRpm = document.getElementById("cycleMeanRpm");
@@ -413,9 +478,10 @@ export default class CylinderCycleChart {
         }
     }
 
-    bindControls() {
+    bindControls(): void {
         this.cylinderSelect?.addEventListener("change", event => {
-            const index = clamp(Number(event.target.value), 0, 3);
+            const select = event.currentTarget as HTMLSelectElement;
+            const index = clamp(Number(select.value), 0, 3);
             this.cycleRecorder.setCylinder(index);
             this.latestDisplayedCycle = null;
             this.pendingCycle = null;
@@ -442,7 +508,7 @@ export default class CylinderCycleChart {
         });
     }
 
-    findLatestCycleForSelectedCylinder() {
+    findLatestCycleForSelectedCylinder(): RecordedCycle | null {
         const selectedIndex = this.cycleRecorder.cylinderIndex;
         const history = this.cycleRecorder.getHistory();
 
@@ -455,7 +521,7 @@ export default class CylinderCycleChart {
         return null;
     }
 
-    clearChartData() {
+    clearChartData(): void {
         if (!this.chart) {
             return;
         }
@@ -467,7 +533,7 @@ export default class CylinderCycleChart {
         this.chart.update("none");
     }
 
-    displayCycle(cycle) {
+    displayCycle(cycle: RecordedCycle | null): void {
         if (!cycle || !Array.isArray(cycle.samples)) {
             return;
         }
@@ -514,7 +580,7 @@ export default class CylinderCycleChart {
         this.updateStatus();
     }
 
-    updateSummary(cycle) {
+    updateSummary(cycle: RecordedCycle | null): void {
         const summary = cycle?.summary;
 
         if (!summary) {
@@ -553,7 +619,7 @@ export default class CylinderCycleChart {
         );
     }
 
-    updateStatus(message = null) {
+    updateStatus(message: string | null = null): void {
         if (this.liveButton) {
             this.liveButton.textContent = this.live
                 ? "Figer ce cycle"
@@ -581,7 +647,7 @@ export default class CylinderCycleChart {
         );
     }
 
-    exportDisplayedCycle() {
+    exportDisplayedCycle(): void {
         const cycle = this.latestDisplayedCycle;
         if (!cycle) {
             this.updateStatus("Aucun cycle complet à exporter.");
@@ -612,14 +678,14 @@ export default class CylinderCycleChart {
     }
 
 
-    setVisible(visible) {
+    setVisible(visible: boolean): void {
         this.visible = Boolean(visible);
         if (this.visible && this.pendingCycle) {
             this.update(performance.now(), true);
         }
     }
 
-    update(currentTime = performance.now(), force = false) {
+    update(currentTime = performance.now(), force = false): boolean {
         if (!this.visible || !this.live || !this.pendingCycle) {
             return false;
         }
@@ -637,7 +703,7 @@ export default class CylinderCycleChart {
         return true;
     }
 
-    clear() {
+    clear(): void {
         this.latestDisplayedCycle = null;
         this.pendingCycle = null;
         this.clearChartData();
@@ -645,7 +711,7 @@ export default class CylinderCycleChart {
         this.updateStatus();
     }
 
-    destroy() {
+    destroy(): void {
         this.unsubscribe?.();
         this.chart?.destroy();
     }

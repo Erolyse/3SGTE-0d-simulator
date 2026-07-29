@@ -8,6 +8,14 @@
 import ChartJsTelemetryAdapter from "../Telemetry/ChartJsTelemetryAdapter.js";
 import DynoSweepRecorder from "./DynoSweepRecorder.js";
 import CylinderCycleChart from "./CylinderCycleChart.js";
+import type {
+    ChartConstructorLike,
+    ChartDatasetLike,
+    ChartInstanceLike,
+    XYPoint
+} from "./ChartInterop.js";
+import type { CycleRecorderLike, TelemetrySample } from "./VisualizationTypes.js";
+
 
 const HORSEPOWER_WATTS = 735.49875;
 const TELEMETRY_HISTORY_POINTS = 20 * 20; // 20 secondes à 20 points/s
@@ -15,11 +23,42 @@ const CHART_REFRESH_INTERVAL_MS = 250; // 4 rafraîchissements visuels/s
 const CHART_POINT_INTERVAL_SECONDS = 1 / 20;
 const MINIMUM_LOG_RESIDUAL = 1e-12;
 
-function finite(value, fallback = 0) {
-    return Number.isFinite(value) ? value : fallback;
+interface ChartTelemetrySeries {
+    datasetIndex: number;
+    key: string;
+    transform?: (value: number | undefined) => number;
 }
 
-function lineDataset(label, yAxisID, color, extra = {}) {
+interface ChartTelemetryAdapterLike {
+    update(): unknown;
+    reset(): void;
+}
+
+interface ChartTelemetryAdapterOptions {
+    recorder: TelemetryRecorderForCharts;
+    chart: ChartInstanceLike;
+    maximumPoints: number;
+    minimumPointIntervalSeconds: number;
+    series: ChartTelemetrySeries[];
+}
+
+type ChartTelemetryAdapterConstructor = new (
+    options: ChartTelemetryAdapterOptions
+) => ChartTelemetryAdapterLike;
+
+const ChartJsTelemetryAdapterCtor = ChartJsTelemetryAdapter as unknown as
+ChartTelemetryAdapterConstructor;
+
+function finite(value: number | undefined, fallback = 0): number {
+    return Number.isFinite(value) ? value as number : fallback;
+}
+
+function lineDataset(
+    label: string,
+    yAxisID: string,
+    color: string,
+    extra: Record<string, unknown> = {}
+): ChartDatasetLike<XYPoint> {
     return {
         label,
         data: [],
@@ -36,12 +75,12 @@ function lineDataset(label, yAxisID, color, extra = {}) {
     };
 }
 
-function getCanvas(id) {
+function getCanvas(id: string): HTMLCanvasElement | null {
     const canvas = document.getElementById(id);
     return canvas instanceof HTMLCanvasElement ? canvas : null;
 }
 
-function commonPlugins(title) {
+function commonPlugins(title: string): Record<string, unknown> {
     return {
         title: {
             display: true,
@@ -66,7 +105,10 @@ function commonPlugins(title) {
     };
 }
 
-function commonLinearScale(title, position = "left") {
+function commonLinearScale(
+    title: string,
+    position: "left" | "right" = "left"
+): Record<string, unknown> {
     return {
         type: "linear",
         position,
@@ -85,7 +127,10 @@ function commonLinearScale(title, position = "left") {
     };
 }
 
-function createDynoChart(Chart, canvas) {
+function createDynoChart(
+    Chart: ChartConstructorLike,
+    canvas: HTMLCanvasElement
+): ChartInstanceLike {
     return new Chart(canvas, {
         type: "line",
         data: {
@@ -128,7 +173,10 @@ function createDynoChart(Chart, canvas) {
     });
 }
 
-function createTurboChart(Chart, canvas) {
+function createTurboChart(
+    Chart: ChartConstructorLike,
+    canvas: HTMLCanvasElement
+): ChartInstanceLike {
     return new Chart(canvas, {
         type: "line",
         data: {
@@ -168,7 +216,10 @@ function createTurboChart(Chart, canvas) {
     });
 }
 
-function createResidualChart(Chart, canvas) {
+function createResidualChart(
+    Chart: ChartConstructorLike,
+    canvas: HTMLCanvasElement
+): ChartInstanceLike {
     return new Chart(canvas, {
         type: "line",
         data: {
@@ -205,7 +256,7 @@ function createResidualChart(Chart, canvas) {
                     grid: { color: "rgba(255,255,255,0.08)" },
                     ticks: {
                         color: "#cfcfcf",
-                        callback(value) {
+                        callback(value: number | string) {
                             return Number(value).toExponential(0);
                         }
                     },
@@ -220,14 +271,43 @@ function createResidualChart(Chart, canvas) {
     });
 }
 
-function writeText(element, text) {
+function writeText(element: HTMLElement | null, text: string): void {
     if (element) {
         element.textContent = text;
     }
 }
 
+export interface TelemetryRecorderForCharts {
+    subscribe(callback: (sample: TelemetrySample) => void): () => void;
+    clear(options?: { resetTime?: boolean }): void;
+}
+
+export interface SimulationChartsOptions {
+    Chart: ChartConstructorLike;
+    recorder: TelemetryRecorderForCharts;
+    cycleRecorder?: CycleRecorderLike | null;
+}
+
 export default class SimulationCharts {
-    constructor({ Chart, recorder, cycleRecorder = null }) {
+    readonly Chart: ChartConstructorLike;
+    readonly recorder: TelemetryRecorderForCharts;
+    lastRefreshTime = 0;
+    visible = true;
+
+    readonly captureButton: HTMLButtonElement | null;
+    readonly clearButton: HTMLButtonElement | null;
+    readonly captureStatus: HTMLElement | null;
+    readonly pointCount: HTMLElement | null;
+    readonly dynoSweep: DynoSweepRecorder;
+    readonly dynoChart: ChartInstanceLike | null;
+    readonly turboChart: ChartInstanceLike | null;
+    readonly residualChart: ChartInstanceLike | null;
+    readonly cylinderCycleChart: CylinderCycleChart | null;
+    readonly turboAdapter: ChartTelemetryAdapterLike | null;
+    readonly residualAdapter: ChartTelemetryAdapterLike | null;
+    readonly unsubscribe: () => void;
+
+    constructor({ Chart, recorder, cycleRecorder = null }: SimulationChartsOptions) {
         if (typeof Chart !== "function") {
             throw new TypeError("Chart.js n'est pas disponible.");
         }
@@ -241,8 +321,8 @@ export default class SimulationCharts {
         this.lastRefreshTime = 0;
         this.visible = true;
 
-        this.captureButton = document.getElementById("dynoCaptureButton");
-        this.clearButton = document.getElementById("clearChartsButton");
+        this.captureButton = document.getElementById("dynoCaptureButton") as HTMLButtonElement | null;
+        this.clearButton = document.getElementById("clearChartsButton") as HTMLButtonElement | null;
         this.captureStatus = document.getElementById("dynoCaptureStatus");
         this.pointCount = document.getElementById("dynoPointCount");
 
@@ -269,7 +349,7 @@ export default class SimulationCharts {
             : null;
 
         this.turboAdapter = this.turboChart
-            ? new ChartJsTelemetryAdapter({
+            ? new ChartJsTelemetryAdapterCtor({
                 recorder,
                 chart: this.turboChart,
                 maximumPoints: TELEMETRY_HISTORY_POINTS,
@@ -278,34 +358,34 @@ export default class SimulationCharts {
                     {
                         datasetIndex: 0,
                         key: "turbinePower",
-                        transform: value => finite(value) / 1000
+                        transform: (value: number | undefined) => finite(value) / 1000
                     },
                     {
                         datasetIndex: 1,
                         key: "compressorPower",
-                        transform: value => finite(value) / 1000
+                        transform: (value: number | undefined) => finite(value) / 1000
                     },
                     {
                         datasetIndex: 2,
                         key: "turboBearingFrictionPower",
-                        transform: value => finite(value) / 1000
+                        transform: (value: number | undefined) => finite(value) / 1000
                     },
                     {
                         datasetIndex: 3,
                         key: "turboNetPower",
-                        transform: value => finite(value) / 1000
+                        transform: (value: number | undefined) => finite(value) / 1000
                     },
                     {
                         datasetIndex: 4,
                         key: "turboRPM",
-                        transform: value => finite(value) / 1000
+                        transform: (value: number | undefined) => finite(value) / 1000
                     }
                 ]
             })
             : null;
 
         this.residualAdapter = this.residualChart
-            ? new ChartJsTelemetryAdapter({
+            ? new ChartJsTelemetryAdapterCtor({
                 recorder,
                 chart: this.residualChart,
                 maximumPoints: TELEMETRY_HISTORY_POINTS,
@@ -314,7 +394,7 @@ export default class SimulationCharts {
                     {
                         datasetIndex: 0,
                         key: "maximumMassResidualPercent",
-                        transform: value => Math.max(
+                        transform: (value: number | undefined) => Math.max(
                             Math.abs(finite(value)),
                             MINIMUM_LOG_RESIDUAL
                         )
@@ -322,7 +402,7 @@ export default class SimulationCharts {
                     {
                         datasetIndex: 1,
                         key: "maximumEnergyResidualPercent",
-                        transform: value => Math.max(
+                        transform: (value: number | undefined) => Math.max(
                             Math.abs(finite(value)),
                             MINIMUM_LOG_RESIDUAL
                         )
@@ -339,7 +419,7 @@ export default class SimulationCharts {
         this.updateControlLabels();
     }
 
-    bindControls() {
+    bindControls(): void {
         this.captureButton?.addEventListener("click", () => {
             this.dynoSweep.toggle();
             this.updateControlLabels();
@@ -359,7 +439,7 @@ export default class SimulationCharts {
         });
     }
 
-    updateControlLabels() {
+    updateControlLabels(): void {
         if (this.captureButton) {
             this.captureButton.textContent = this.dynoSweep.capturing
                 ? "Arrêter l'enregistrement du tir"
@@ -376,7 +456,7 @@ export default class SimulationCharts {
         );
     }
 
-    refreshDynoChart() {
+    refreshDynoChart(): boolean {
         if (!this.dynoChart || !this.dynoSweep.dirty) {
             return false;
         }
@@ -416,12 +496,12 @@ export default class SimulationCharts {
         return true;
     }
 
-    setVisible(visible) {
+    setVisible(visible: boolean): void {
         this.visible = Boolean(visible);
         this.cylinderCycleChart?.setVisible?.(this.visible);
     }
 
-    update(currentTime = performance.now()) {
+    update(currentTime = performance.now()): void {
         if (!this.visible) {
             return;
         }
@@ -439,7 +519,7 @@ export default class SimulationCharts {
         this.refreshDynoChart();
     }
 
-    destroy() {
+    destroy(): void {
         this.unsubscribe?.();
         this.dynoChart?.destroy();
         this.turboChart?.destroy();
@@ -448,7 +528,10 @@ export default class SimulationCharts {
     }
 }
 
-export function initializeSimulationCharts({ recorder, cycleRecorder = null }) {
+export function initializeSimulationCharts({
+                                               recorder,
+                                               cycleRecorder = null
+                                           }: Omit<SimulationChartsOptions, "Chart">): SimulationCharts | null {
     const Chart = globalThis.Chart;
 
     if (typeof Chart !== "function") {
