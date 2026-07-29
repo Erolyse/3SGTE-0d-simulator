@@ -27,29 +27,37 @@ const COLD_GAS_COLOR = new THREE.Color(0x361006);
 const HOT_GAS_COLOR = new THREE.Color(0xffd45a);
 const LIGHT_COLOR = new THREE.Color(0xffb12b);
 
-function clamp01(value) {
+function clamp01(value: number): number {
     return Math.max(0, Math.min(1, value));
 }
 
 /**
  * Gère l'effet de combustion d'un seul cylindre.
  */
+export interface CombustionVisualOptions {
+    gasMesh: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshStandardMaterial>;
+    pointLight: THREE.PointLight;
+}
+
 export class CombustionVisual {
+    readonly gasMesh: THREE.Mesh<
+        THREE.CylinderGeometry,
+        THREE.MeshStandardMaterial
+        >;
+    readonly pointLight: THREE.PointLight;
+    intensity = 0;
+    readonly currentColor = new THREE.Color();
+
     /**
      * @param {object} options
      * @param {THREE.Mesh} options.gasMesh Volume gazeux visible dans la chambre.
      * @param {THREE.PointLight} options.pointLight Lumière placée dans le cylindre.
      */
-    constructor({ gasMesh, pointLight }) {
+    constructor({ gasMesh, pointLight }: CombustionVisualOptions) {
         this.gasMesh = gasMesh;
         this.pointLight = pointLight;
 
-        // Intensité visuelle filtrée entre 0 et 1.
-        this.intensity = 0;
-
-        // Couleur temporaire réutilisée à chaque frame pour éviter
-        // de créer de nouveaux objets et de solliciter le ramasse-miettes.
-        this.currentColor = new THREE.Color();
+        // Intensité et couleur temporaires sont initialisées sur la classe.
 
         this.reset();
     }
@@ -60,7 +68,7 @@ export class CombustionVisual {
      * @param {number} heatReleaseRateW Puissance thermique du cylindre en W.
      * @param {number} renderDt Durée écoulée entre deux images en secondes.
      */
-    update(heatReleaseRateW, renderDt) {
+    update(heatReleaseRateW: number, renderDt: number): void {
         const safeRate = Number.isFinite(heatReleaseRateW)
             ? Math.max(0, heatReleaseRateW)
             : 0;
@@ -91,7 +99,7 @@ export class CombustionVisual {
         this.applyVisualState();
     }
 
-    applyVisualState() {
+    applyVisualState(): void {
         const material = this.gasMesh.material;
 
         // Mélange progressif orange sombre → jaune chaud.
@@ -112,7 +120,7 @@ export class CombustionVisual {
             * MAX_POINT_LIGHT_INTENSITY;
     }
 
-    reset() {
+    reset(): void {
         this.intensity = 0;
         this.applyVisualState();
     }

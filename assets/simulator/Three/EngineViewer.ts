@@ -5,6 +5,11 @@
 import * as THREE from "three";
 import ProceduralEngineModel from "./ProceduralEngineModel.js";
 import EngineVisualPlayback from "./EngineVisualPlayback.js";
+import type { EngineStateData } from "../engine/EngineStateTypes.js";
+import type {
+    EngineViewerOptions,
+    PlaybackStatus
+} from "./ThreeTypes.js";
 
 const CAMERA_TARGET = new THREE.Vector3(0, 0.18, 0);
 
@@ -15,6 +20,32 @@ const MIN_CAMERA_PHI = 0.35;
 const MAX_CAMERA_PHI = Math.PI - 0.35;
 
 export default class EngineViewer {
+    readonly canvas: HTMLCanvasElement;
+    disposed = false;
+    readonly pixelRatioCap: number;
+    readonly shadowsEnabled: boolean;
+    resizeDirty = true;
+
+    cameraRadius = 7.2;
+    cameraTheta = 0.78;
+    cameraPhi = 1.08;
+    pointerActive = false;
+    lastPointerX = 0;
+    lastPointerY = 0;
+
+    renderer!: THREE.WebGLRenderer;
+    scene!: THREE.Scene;
+    camera!: THREE.PerspectiveCamera;
+    engineModel!: ProceduralEngineModel;
+    visualPlayback: EngineVisualPlayback;
+    resizeObserver: ResizeObserver | null = null;
+
+    onWindowResize: () => void = () => {};
+    onPointerDown: (event: PointerEvent) => void = () => {};
+    onPointerMove: (event: PointerEvent) => void = () => {};
+    onPointerUp: (event: PointerEvent) => void = () => {};
+    onWheel: (event: WheelEvent) => void = () => {};
+
     /**
      * @param {object} options
      * @param {HTMLCanvasElement} options.canvas Canvas utilisé par Three.js.
@@ -27,7 +58,7 @@ export default class EngineViewer {
                     defaultCycleDurationSeconds = 2,
                     pixelRatioCap = 1.25,
                     shadows = false
-                }) {
+                }: EngineViewerOptions) {
         if (!(canvas instanceof HTMLCanvasElement)) {
             throw new TypeError(
                 "EngineViewer nécessite un HTMLCanvasElement valide."
@@ -68,7 +99,7 @@ export default class EngineViewer {
         this.updateCameraPosition();
     }
 
-    createRenderer() {
+    createRenderer(): void {
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
             antialias: true,
@@ -89,13 +120,13 @@ export default class EngineViewer {
         }
     }
 
-    createScene() {
+    createScene(): void {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x05080a);
         this.scene.fog = new THREE.Fog(0x05080a, 10, 22);
     }
 
-    createCamera() {
+    createCamera(): void {
         this.camera = new THREE.PerspectiveCamera(
             42,
             1,
@@ -104,7 +135,7 @@ export default class EngineViewer {
         );
     }
 
-    createLighting() {
+    createLighting(): void {
         // Éclairage général doux : évite les faces totalement noires.
         const hemisphereLight = new THREE.HemisphereLight(
             0xbddcff,
@@ -135,7 +166,7 @@ export default class EngineViewer {
         this.scene.add(rimLight);
     }
 
-    createEnvironment() {
+    createEnvironment(): void {
         // Sol sombre recevant les ombres.
         const floorGeometry = new THREE.PlaneGeometry(30, 30);
         const floorMaterial = new THREE.MeshStandardMaterial({
@@ -163,13 +194,13 @@ export default class EngineViewer {
         this.scene.add(grid);
     }
 
-    createEngineModel() {
+    createEngineModel(): void {
         this.engineModel = new ProceduralEngineModel();
         this.engineModel.rotation.y = -0.10;
         this.scene.add(this.engineModel);
     }
 
-    installResizeObserver() {
+    installResizeObserver(): void {
         this.resizeObserver = typeof ResizeObserver === "function"
             ? new ResizeObserver(() => {
                 this.resizeDirty = true;
@@ -186,15 +217,15 @@ export default class EngineViewer {
 
     // Contrôle caméra sans dépendance supplémentaire
 
-    installPointerControls() {
-        this.onPointerDown = event => {
+    installPointerControls(): void {
+        this.onPointerDown = (event: PointerEvent) => {
             this.pointerActive = true;
             this.lastPointerX = event.clientX;
             this.lastPointerY = event.clientY;
             this.canvas.setPointerCapture?.(event.pointerId);
         };
 
-        this.onPointerMove = event => {
+        this.onPointerMove = (event: PointerEvent) => {
             if (!this.pointerActive) return;
 
             const deltaX = event.clientX - this.lastPointerX;
@@ -213,12 +244,12 @@ export default class EngineViewer {
             this.updateCameraPosition();
         };
 
-        this.onPointerUp = event => {
+        this.onPointerUp = (event: PointerEvent) => {
             this.pointerActive = false;
             this.canvas.releasePointerCapture?.(event.pointerId);
         };
 
-        this.onWheel = event => {
+        this.onWheel = (event: WheelEvent) => {
             event.preventDefault();
 
             const zoomFactor = Math.exp(event.deltaY * 0.001);
@@ -240,7 +271,7 @@ export default class EngineViewer {
         });
     }
 
-    updateCameraPosition() {
+    updateCameraPosition(): void {
         const sinPhi = Math.sin(this.cameraPhi);
 
         this.camera.position.set(
@@ -257,7 +288,7 @@ export default class EngineViewer {
 
     // API publique
 
-    updateFromEngineState(state, renderDt) {
+    updateFromEngineState(state: EngineStateData, renderDt: number): void {
         if (this.disposed) return;
 
         const visualState = this.visualPlayback.update(
@@ -271,11 +302,11 @@ export default class EngineViewer {
         );
     }
 
-    getPlaybackStatus() {
+    getPlaybackStatus(): PlaybackStatus {
         return this.visualPlayback.getStatus();
     }
 
-    render() {
+    render(): void {
         if (this.disposed) return;
 
         if (this.resizeDirty) {
@@ -284,7 +315,7 @@ export default class EngineViewer {
         this.renderer.render(this.scene, this.camera);
     }
 
-    resizeRendererToDisplaySize() {
+    resizeRendererToDisplaySize(): void {
         this.resizeDirty = false;
         const width = Math.max(1, this.canvas.clientWidth);
         const height = Math.max(1, this.canvas.clientHeight);
@@ -299,7 +330,7 @@ export default class EngineViewer {
         this.camera.updateProjectionMatrix();
     }
 
-    dispose() {
+    dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
 

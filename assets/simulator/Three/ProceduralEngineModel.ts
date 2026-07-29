@@ -3,6 +3,7 @@
 
 import * as THREE from "three";
 import { CombustionVisual } from "./CombustionVisuals.js";
+import type { EngineVisualOutputState } from "./ThreeTypes.js";
 
 // Constantes visuelles
 
@@ -75,15 +76,23 @@ function createGasMaterial() {
  * Modèle procédural minimal du quatre-cylindres.
  */
 export class ProceduralEngineModel extends THREE.Group {
+    readonly pistons: Array<THREE.Mesh<
+        THREE.CylinderGeometry,
+        THREE.MeshStandardMaterial
+>> = [];
+    readonly gasMeshes: Array<THREE.Mesh<
+        THREE.CylinderGeometry,
+        THREE.MeshStandardMaterial
+>> = [];
+    readonly combustionLights: THREE.PointLight[] = [];
+    readonly combustionVisuals: CombustionVisual[] = [];
+    readonly metalMaterial: THREE.MeshStandardMaterial;
+    readonly linerMaterial: THREE.MeshPhysicalMaterial;
+
     constructor() {
         super();
 
         this.name = "ProceduralEngineModel";
-
-        this.pistons = [];
-        this.gasMeshes = [];
-        this.combustionLights = [];
-        this.combustionVisuals = [];
 
         this.metalMaterial = createMetalMaterial();
         this.linerMaterial = createLinerMaterial();
@@ -94,7 +103,7 @@ export class ProceduralEngineModel extends THREE.Group {
 
     // Construction du modèle
 
-    buildStaticFrame() {
+    buildStaticFrame(): void {
         // Plaque sombre servant uniquement de repère visuel sous les cylindres.
         const baseGeometry = new THREE.BoxGeometry(
             CYLINDER_SPACING * 4.15,
@@ -127,7 +136,7 @@ export class ProceduralEngineModel extends THREE.Group {
         this.add(head);
     }
 
-    buildCylinders() {
+    buildCylinders(): void {
         for (let i = 0; i < CYLINDER_COUNT; i++) {
             const x = (i - (CYLINDER_COUNT - 1) / 2)
                 * CYLINDER_SPACING;
@@ -141,7 +150,10 @@ export class ProceduralEngineModel extends THREE.Group {
         }
     }
 
-    buildSingleCylinder(cylinderGroup, cylinderIndex) {
+    buildSingleCylinder(
+        cylinderGroup: THREE.Group,
+        cylinderIndex: number
+    ): void {
         // Chemise translucide.
         const linerGeometry = new THREE.CylinderGeometry(
             LINER_RADIUS,
@@ -238,19 +250,24 @@ export class ProceduralEngineModel extends THREE.Group {
      * @param {object} state EngineState courant.
      * @param {number} renderDt Temps entre deux images en secondes.
      */
-    updateFromEngineState(state, renderDt) {
+    updateFromEngineState(
+        state: EngineVisualOutputState,
+        renderDt: number
+    ): void {
         const pistonPositions = state?.pistonPositions ?? [];
         const heatReleaseRates = state?.cylinderHeatReleaseRate ?? [];
 
         for (let i = 0; i < CYLINDER_COUNT; i++) {
-            const displacementM = Number.isFinite(pistonPositions[i])
-                ? Math.max(0, pistonPositions[i])
-                : 0;
+            const pistonPosition = pistonPositions[i];
+            const displacementM = Number.isFinite(pistonPosition)
+                ? Math.max(0, pistonPosition as number)
+        : 0;
 
             this.updateCylinderGeometry(i, displacementM);
 
-            const heatReleaseRateW = Number.isFinite(heatReleaseRates[i])
-                ? heatReleaseRates[i]
+            const heatReleaseRate = heatReleaseRates[i];
+            const heatReleaseRateW = Number.isFinite(heatReleaseRate)
+                ? heatReleaseRate as number
                 : 0;
 
             this.combustionVisuals[i].update(
@@ -260,7 +277,10 @@ export class ProceduralEngineModel extends THREE.Group {
         }
     }
 
-    updateCylinderGeometry(cylinderIndex, displacementM) {
+    updateCylinderGeometry(
+        cylinderIndex: number,
+        displacementM: number
+    ): void {
         const piston = this.pistons[cylinderIndex];
         const gasMesh = this.gasMeshes[cylinderIndex];
         const combustionLight = this.combustionLights[cylinderIndex];
@@ -289,7 +309,7 @@ export class ProceduralEngineModel extends THREE.Group {
 
     // Libération des ressources gpu
 
-    dispose() {
+    dispose(): void {
         this.traverse(object => {
             if (object.geometry) {
                 object.geometry.dispose();

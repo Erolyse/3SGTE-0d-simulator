@@ -9,6 +9,16 @@ import {
     getCylinderVolume,
     getPistonDisplacementFromTDC
 } from "../Geometry/Geometry.js";
+import type { EngineStateData } from "../engine/EngineStateTypes.js";
+import type { CycleSample } from "../Charts/VisualizationTypes.js";
+import type {
+    EngineReplayState,
+    EngineVisualOutputState,
+    EngineVisualPlaybackOptions,
+    PlaybackMode,
+    PlaybackStatus,
+    RecordedCycle
+} from "./ThreeTypes.js";
 
 const FULL_CYCLE_DEG = 720;
 const DEG_TO_RAD = Math.PI / 180;
@@ -21,22 +31,51 @@ const MIN_VISUAL_CYCLE_DURATION_S = 0.25;
 const MAX_VISUAL_CYCLE_DURATION_S = 20;
 const DURATION_SLIDER_STEPS = 1000;
 
-function clamp(value, minimum, maximum) {
+type ReplayCycleField =
+| "cylinderVolumeM3"
+| "cylinderPressurePa"
+| "cylinderTemperatureK"
+| "burnedFraction"
+| "heatReleaseRateW"
+| "intakeValveLiftM"
+| "exhaustValveLiftM"
+| "intakeValveMassFlowKgS"
+| "exhaustValveMassFlowKgS";
+
+interface CycleSamplePair {
+    first: CycleSample;
+    second: CycleSample;
+    ratio: number;
+}
+
+interface ControlListener {
+    element: HTMLElement;
+    eventName: string;
+    handler: EventListener;
+}
+
+
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function finite(value, fallback = 0) {
-    return Number.isFinite(value) ? value : fallback;
+function finite(value: number | undefined | null, fallback = 0): number {
+    return Number.isFinite(value) ? value as number : fallback;
 }
 
-function normalizeAngle720(angleDeg) {
+function normalizeAngle720(angleDeg: number): number {
     return (
         (angleDeg % FULL_CYCLE_DEG)
         + FULL_CYCLE_DEG
     ) % FULL_CYCLE_DEG;
 }
 
-function interpolateNumber(a, b, ratio, fallback = 0) {
+function interpolateNumber(
+    a: number | undefined,
+    b: number | undefined,
+    ratio: number,
+    fallback = 0
+): number {
     const first = finite(a, fallback);
     const second = finite(b, first);
     return first + (second - first) * ratio;
@@ -46,7 +85,10 @@ function interpolateNumber(a, b, ratio, fallback = 0) {
  * Recherche les deux échantillons angulaires encadrant l'angle demandé.
  * Le CycleRecorder fournit des points triés de 0° à 720°.
  */
-function getCycleSamplePair(cycle, angleDeg) {
+function getCycleSamplePair(
+    cycle: RecordedCycle | null | undefined,
+    angleDeg: number
+): CycleSamplePair | null {
     const samples = cycle?.samples;
     if (!Array.isArray(samples) || samples.length === 0) {
         return null;
@@ -107,20 +149,27 @@ function getCycleSamplePair(cycle, angleDeg) {
     };
 }
 
-function interpolateCycleField(pair, field, fallback = 0) {
+function interpolateCycleField(
+    pair: CycleSamplePair | null,
+    field: ReplayCycleField,
+    fallback = 0
+): number {
     if (!pair) {
         return fallback;
     }
 
+    const firstValue = pair.first[field];
+    const secondValue = pair.second[field];
+
     return interpolateNumber(
-        pair.first?.[field],
-        pair.second?.[field],
+        typeof firstValue === "number" ? firstValue : undefined,
+        typeof secondValue === "number" ? secondValue : undefined,
         pair.ratio,
         fallback
     );
 }
 
-function durationToSliderValue(durationSeconds) {
+function durationToSliderValue(durationSeconds: number): number {
     const duration = clamp(
         durationSeconds,
         MIN_VISUAL_CYCLE_DURATION_S,
@@ -137,7 +186,7 @@ function durationToSliderValue(durationSeconds) {
     return Math.round(normalized * DURATION_SLIDER_STEPS);
 }
 
-function sliderValueToDuration(sliderValue) {
+function sliderValueToDuration(sliderValue: string | number): number {
     const normalized = clamp(
         finite(Number(sliderValue)) / DURATION_SLIDER_STEPS,
         0,
@@ -151,7 +200,7 @@ function sliderValueToDuration(sliderValue) {
     );
 }
 
-function formatDuration(durationSeconds) {
+function formatDuration(durationSeconds: number): string {
     if (durationSeconds < 1) {
         return `${Math.round(durationSeconds * 1000)} ms`;
     }
@@ -159,7 +208,10 @@ function formatDuration(durationSeconds) {
     return `${durationSeconds.toFixed(durationSeconds < 10 ? 1 : 0)} s`;
 }
 
-function formatSlowdownRatio(physicalCycleDuration, visualCycleDuration) {
+function formatSlowdownRatio(
+    physicalCycleDuration: number,
+    visualCycleDuration: number
+): string {
     if (!(physicalCycleDuration > 0) || !(visualCycleDuration > 0)) {
         return "";
     }
@@ -173,7 +225,7 @@ function formatSlowdownRatio(physicalCycleDuration, visualCycleDuration) {
     return `1/${divisor}×`;
 }
 
-function setText(element, value) {
+function setText(element: HTMLElement | null | undefined, value: string): void {
     if (element && element.textContent !== value) {
         element.textContent = value;
     }
@@ -187,11 +239,39 @@ function setText(element, value) {
  * du dernier cycle 720°. Aucun champ du moteur physique n'est modifié.
  */
 export default class EngineVisualPlayback {
+    readonly canvas: HTMLCanvasElement;
+    readonly cycleRecorder: EngineVisualPlaybackOptions["cycleRecorder"] | null;
+    disposed = false;
+    controlsOwnedByPlayback = false;
+    readonly controlListeners: ControlListener[] = [];
+    mode: PlaybackMode = "replay";
+    paused = false;
+    visualCycleDurationSeconds: number;
+    visualCrankAngleDeg: number | null = null;
+    lastEngineState: EngineStateData | null = null;
+    controlsDirty = true;
+    lastControlsUpdateTime = 0;
+    readonly replayState: EngineReplayState;
+    pendingCycle: RecordedCycle | null;
+    playbackCycle: RecordedCycle | null;
+    unsubscribeCycleRecorder: (() => void) | null = null;
+
+    controlsRoot: HTMLElement | null = null;
+    readout: HTMLElement | null = null;
+    durationValueElement: HTMLElement | null = null;
+    statusElement: HTMLElement | null = null;
+    headerModeElement: HTMLElement | null = null;
+    liveButton!: HTMLElement;
+    slowButton!: HTMLElement;
+    ultraButton!: HTMLElement;
+    pauseButton!: HTMLElement;
+    durationSlider!: HTMLInputElement;
+
     constructor({
                     canvas,
                     cycleRecorder = null,
                     defaultCycleDurationSeconds = DEFAULT_VISUAL_CYCLE_DURATION_S
-                }) {
+                }: EngineVisualPlaybackOptions) {
         if (!(canvas instanceof HTMLCanvasElement)) {
             throw new TypeError(
                 "EngineVisualPlayback nécessite un canvas Three.js valide."
@@ -200,16 +280,10 @@ export default class EngineVisualPlayback {
 
         this.canvas = canvas;
         this.cycleRecorder = cycleRecorder;
-        this.disposed = false;
-
         // Une interface minimale est créée si les contrôles externes sont absents.
-        this.controlsOwnedByPlayback = false;
-        this.controlListeners = [];
 
         // Le viewer démarre en mode lisible. Le bouton "Temps réel"
         // permet de revenir instantanément à EngineState brut.
-        this.mode = "replay";
-        this.paused = false;
         this.visualCycleDurationSeconds = clamp(
             finite(
                 defaultCycleDurationSeconds,
@@ -220,10 +294,6 @@ export default class EngineVisualPlayback {
         );
 
         // Angle global du vilebrequin utilisé uniquement par Three.js.
-        this.visualCrankAngleDeg = null;
-        this.lastEngineState = null;
-        this.controlsDirty = true;
-        this.lastControlsUpdateTime = 0;
 
         const cylinderCount = CYLINDER_OFFSETS.length;
         this.replayState = {
@@ -264,8 +334,11 @@ export default class EngineVisualPlayback {
 
     // API publique
 
-    update(liveState, renderDt) {
-        if (this.disposed || !liveState) {
+    update(
+        liveState: EngineStateData,
+        renderDt: number
+    ): EngineVisualOutputState {
+        if (this.disposed) {
             return liveState;
         }
 
@@ -290,7 +363,7 @@ export default class EngineVisualPlayback {
         return replayState;
     }
 
-    setLive() {
+    setLive(): void {
         this.mode = "live";
         this.paused = false;
         this.visualCrankAngleDeg = null;
@@ -298,7 +371,10 @@ export default class EngineVisualPlayback {
         this.maybeUpdateControls(true);
     }
 
-    setCycleDuration(durationSeconds, { preservePause = false } = {}) {
+    setCycleDuration(
+        durationSeconds: number,
+        { preservePause = false }: { preservePause?: boolean } = {}
+    ): void {
         const wasLive = this.mode === "live";
 
         this.mode = "replay";
@@ -318,7 +394,7 @@ export default class EngineVisualPlayback {
         this.maybeUpdateControls(true);
     }
 
-    togglePause() {
+    togglePause(): void {
         if (this.mode === "live") {
             this.mode = "replay";
             this.initializeVisualCrankAngle();
@@ -332,7 +408,7 @@ export default class EngineVisualPlayback {
         this.maybeUpdateControls(true);
     }
 
-    getStatus() {
+    getStatus(): PlaybackStatus {
         return {
             mode: this.mode,
             paused: this.paused,
@@ -343,7 +419,7 @@ export default class EngineVisualPlayback {
         };
     }
 
-    dispose() {
+    dispose(): void {
         if (this.disposed) {
             return;
         }
@@ -367,8 +443,9 @@ export default class EngineVisualPlayback {
 
     // Horloge visuelle et état rejoué
 
-    initializeVisualCrankAngle() {
-        if (Number.isFinite(this.visualCrankAngleDeg)) {
+    initializeVisualCrankAngle(): void {
+        if (typeof this.visualCrankAngleDeg === "number"
+            && Number.isFinite(this.visualCrankAngleDeg)) {
             return;
         }
 
@@ -377,7 +454,7 @@ export default class EngineVisualPlayback {
         );
     }
 
-    advanceReplayAngle(renderDt) {
+    advanceReplayAngle(renderDt: number): void {
         this.initializeVisualCrankAngle();
 
         if (this.paused) {
@@ -395,7 +472,7 @@ export default class EngineVisualPlayback {
             return;
         }
 
-        const previousAngle = this.visualCrankAngleDeg;
+        const previousAngle = this.visualCrankAngleDeg ?? 0;
         const degreesPerSecond = FULL_CYCLE_DEG
             / this.visualCycleDurationSeconds;
 
@@ -411,7 +488,7 @@ export default class EngineVisualPlayback {
         }
     }
 
-    createReplayState(liveState) {
+    createReplayState(liveState: EngineStateData): EngineReplayState {
         const cycle = this.playbackCycle ?? this.pendingCycle;
         const globalCrankAngleDeg = normalizeAngle720(
             finite(this.visualCrankAngleDeg)
@@ -492,7 +569,11 @@ export default class EngineVisualPlayback {
 
     // Interface DOM
 
-    addControlListener(element, eventName, handler) {
+    addControlListener(
+        element: HTMLElement | null | undefined,
+        eventName: string,
+        handler: EventListener
+    ): void {
         if (!element) {
             return;
         }
@@ -505,7 +586,7 @@ export default class EngineVisualPlayback {
         });
     }
 
-    bindFrontControls() {
+    bindFrontControls(): boolean {
         const root = document.getElementById(
             "engineViewerPlaybackControls"
         );
@@ -587,9 +668,10 @@ export default class EngineVisualPlayback {
         this.addControlListener(
             this.durationSlider,
             "input",
-            event => {
+            (event: Event) => {
+                const input = event.currentTarget as HTMLInputElement;
                 const duration = sliderValueToDuration(
-                    event.currentTarget.value
+                    input.value
                 );
 
                 this.setCycleDuration(duration, {
@@ -601,7 +683,7 @@ export default class EngineVisualPlayback {
         return true;
     }
 
-    configureDurationSlider() {
+    configureDurationSlider(): void {
         this.durationSlider.min = "0";
         this.durationSlider.max = String(DURATION_SLIDER_STEPS);
         this.durationSlider.step = "1";
@@ -614,7 +696,7 @@ export default class EngineVisualPlayback {
         );
     }
 
-    createControls() {
+    createControls(): void {
         if (this.bindFrontControls()) {
             this.controlsDirty = true;
             this.maybeUpdateControls(true);
@@ -642,7 +724,10 @@ export default class EngineVisualPlayback {
         const buttonRow = document.createElement("div");
         buttonRow.className = "engine-viewer-playback__buttons";
 
-        const createButton = (label, onClick) => {
+        const createButton = (
+                label: string,
+            onClick: () => void
+    ): HTMLButtonElement => {
             const button = document.createElement("button");
             button.type = "button";
             button.textContent = label;
@@ -684,9 +769,10 @@ export default class EngineVisualPlayback {
         this.addControlListener(
             this.durationSlider,
             "input",
-            event => {
+            (event: Event) => {
+                const input = event.currentTarget as HTMLInputElement;
                 const duration = sliderValueToDuration(
-                    event.currentTarget.value
+                    input.value
                 );
 
                 this.setCycleDuration(duration, {
@@ -714,7 +800,7 @@ export default class EngineVisualPlayback {
         this.maybeUpdateControls(true);
     }
 
-    maybeUpdateControls(force = false) {
+    maybeUpdateControls(force = false): void {
         const now = performance.now();
         if (!force && !this.controlsDirty
             && now - this.lastControlsUpdateTime < 250) {
@@ -725,7 +811,7 @@ export default class EngineVisualPlayback {
         this.lastControlsUpdateTime = now;
     }
 
-    updateControls() {
+    updateControls(): void {
         if (!this.controlsRoot) {
             return;
         }
@@ -827,7 +913,7 @@ export default class EngineVisualPlayback {
         }
     }
 
-    installStyles() {
+    installStyles(): void {
         const styleId = "engine-viewer-playback-styles";
         if (document.getElementById(styleId)) {
             return;
