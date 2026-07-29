@@ -2,6 +2,8 @@
 // fermé et applique les pertes mécaniques internes. Dyno.js intègre ensuite le
 // régime avec les inerties, les pertes de transmission et la charge du banc.
 
+import type { CrankshaftModuleState } from "../engine/EngineStateTypes.js";
+
 import {
     PISTON_AREA,
     SWEPT_VOLUME,
@@ -28,7 +30,11 @@ const TORQUE_DISPLAY_SMOOTHING_TAU = 0.080; // s
 const FOUR_STROKE_CYCLE_ANGLE = 4 * Math.PI;
 const TOTAL_DISPLACEMENT = SWEPT_VOLUME * CYLINDER_OFFSETS.length;
 
-function updateSmoothedValue(currentValue, targetValue, dt) {
+function updateSmoothedValue(
+    currentValue: number,
+    targetValue: number,
+    dt: number
+): number {
     const alpha = 1 - Math.exp(
         -Math.max(dt, 0) / TORQUE_DISPLAY_SMOOTHING_TAU
     );
@@ -45,14 +51,17 @@ function updateSmoothedValue(currentValue, targetValue, dt) {
  * Le couple de pompage n'est donc pas une courbe ajoutée : il provient toujours
  * du travail réel des pressions d'admission et d'échappement sur le piston.
  */
-function isGasExchangePhase(localAngle) {
+function isGasExchangePhase(localAngle: number): boolean {
     return isIntakeValveOpen(localAngle)
         || isExhaustValveOpen(localAngle);
 }
 
 // Calcul du couple moteur
 
-export function updateCrankshaft(state, dt) {
+export function updateCrankshaft(
+    state: CrankshaftModuleState,
+    dt: number
+): void {
     if (dt <= 0) {
         return;
     }

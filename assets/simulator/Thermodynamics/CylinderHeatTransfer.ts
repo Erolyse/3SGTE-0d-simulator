@@ -60,7 +60,7 @@ const MAX_HEAT_TRANSFER_COEFFICIENT = 5000; // W/(m².K)
 const MIN_PRESSURE = 1000;                  // Pa
 const MIN_TEMPERATURE = 150;                // K
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
@@ -75,7 +75,22 @@ function clamp(value, minimum, maximum) {
  *
  * La surface de chemise exposée vaut ensuite PI * alésage * x.
  */
-function getCylinderWallAreas(cylinderVolume) {
+interface CylinderWallAreas {
+    headArea: number;
+    pistonArea: number;
+    linerArea: number;
+    totalArea: number;
+}
+
+export interface CylinderWallHeatTransferResult {
+    heatTransferRateToWalls: number;
+    heatTransferCoefficient: number;
+    totalWallArea: number;
+    effectiveWallTemperature: number;
+    characteristicGasVelocity: number;
+}
+
+function getCylinderWallAreas(cylinderVolume: number): CylinderWallAreas {
     const pistonDisplacement = Math.max(
         (cylinderVolume - CLEARANCE_VOLUME) / PISTON_AREA,
         0
@@ -95,7 +110,7 @@ function getCylinderWallAreas(cylinderVolume) {
 
 // Vitesse caractéristique des gaz
 
-function getCharacteristicGasVelocity(rpm, burnedFraction) {
+function getCharacteristicGasVelocity(rpm: number, burnedFraction: number): number {
     const clampedRPM = Math.max(rpm, 0);
     const meanPistonSpeed = 2 * STROKE * clampedRPM / 60;
 
@@ -130,12 +145,12 @@ function getCharacteristicGasVelocity(rpm, burnedFraction) {
  * }}
  */
 export function calculateCylinderWallHeatTransfer(
-    pressure,
-    gasTemperature,
-    cylinderVolume,
-    rpm,
-    burnedFraction
-) {
+    pressure: number,
+    gasTemperature: number,
+    cylinderVolume: number,
+    rpm: number,
+    burnedFraction: number
+): CylinderWallHeatTransferResult {
     const P = Math.max(pressure, MIN_PRESSURE);
     const T = Math.max(gasTemperature, MIN_TEMPERATURE);
     const areas = getCylinderWallAreas(cylinderVolume);

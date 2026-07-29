@@ -2,6 +2,11 @@
 // compresseur centrifuge, volume de charge, intercooler et wastegate.
 // L'arbre suit J·dω/dt = Στ ; aucune courbe régime-couple n'est utilisée.
 
+import type {
+    TurbochargerModuleState,
+    TurboState
+} from "../engine/EngineStateTypes.js";
+
 import {
     R_AIR,
     GAMMA_AIR,
@@ -187,28 +192,33 @@ const MAX_CHARGE_TEMPERATURE = 520; // K
 const MIN_GAS_MASS = 1e-9; // kg
 const MAX_SOURCE_MASS_FRACTION_PER_STEP = 0.22;
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function firstOrderResponse(currentValue, targetValue, dt, timeConstant) {
+function firstOrderResponse(
+    currentValue: number,
+    targetValue: number,
+    dt: number,
+    timeConstant: number
+): number {
     const alpha = 1 - Math.exp(
         -Math.max(dt, 0) / Math.max(timeConstant, 1e-6)
     );
     return currentValue + (targetValue - currentValue) * alpha;
 }
 
-function smoothBell(value, center, width) {
+function smoothBell(value: number, center: number, width: number): number {
     const normalized = (value - center) / Math.max(width, 1e-6);
     return Math.exp(-normalized * normalized);
 }
 
-function smoothStep01(value) {
+function smoothStep01(value: number): number {
     const x = clamp(value, 0, 1);
     return x * x * (3 - 2 * x);
 }
 
-function getChargeTemperature(mass, energy) {
+function getChargeTemperature(mass: number, energy: number): number {
     return clamp(
         energy / (Math.max(mass, MIN_GAS_MASS) * CV_AIR),
         MIN_TEMPERATURE,
@@ -216,14 +226,14 @@ function getChargeTemperature(mass, energy) {
     );
 }
 
-function getChargePressure(mass, temperature) {
+function getChargePressure(mass: number, temperature: number): number {
     return Math.max(
         mass * R_AIR * temperature / CHARGE_AIR_VOLUME,
         MIN_PRESSURE
     );
 }
 
-function initializeChargeAirIfNeeded(state) {
+function initializeChargeAirIfNeeded(state: TurbochargerModuleState): void {
     const previousMass = Number.isFinite(state.chargeAirMass)
         ? state.chargeAirMass
         : 0;
@@ -267,12 +277,25 @@ function initializeChargeAirIfNeeded(state) {
  * jour l'énergie du scroll. Cela conserve une responsabilité claire entre le
  * volume échappement et la machine tournante.
  */
+export interface TurboExhaustBoundaryResult {
+    scrollIndex: number;
+    requestedTurbineMassFlow: number;
+    requestedWastegateMassFlow: number;
+    turbineTorque: number;
+    turbineShaftPower: number;
+    availableGasPower: number;
+    idealSpecificWork: number;
+    turbineOutletTemperature: number;
+    wastegateArea: number;
+    turbineOutletPressure: number;
+}
+
 export function calculateTurboExhaustBoundary(
-    state,
-    scrollIndex,
-    upstreamPressure,
-    upstreamTemperature
-) {
+    state: TurboState,
+    scrollIndex: number,
+    upstreamPressure: number,
+    upstreamTemperature: number
+): TurboExhaustBoundaryResult {
     const pressure = Math.max(upstreamPressure, MIN_PRESSURE);
     const temperature = Math.max(upstreamTemperature, MIN_TEMPERATURE);
     const shaftOmega = Math.max(
@@ -428,11 +451,11 @@ export function calculateTurboExhaustBoundary(
 // Compresseur et volume de charge
 
 function calculateCompressorEfficiency(
-    turboRpm,
-    massFlow,
-    inletDensity,
-    tipSpeed
-) {
+    turboRpm: number,
+    massFlow: number,
+    inletDensity: number,
+    tipSpeed: number
+): number {
     const speedRatio = turboRpm / COMPRESSOR_DESIGN_RPM;
     const flowCoefficient = tipSpeed > 1
         ? massFlow
@@ -460,7 +483,10 @@ function calculateCompressorEfficiency(
     );
 }
 
-function updateCompressorBypass(state, dt) {
+function updateCompressorBypass(
+    state: TurbochargerModuleState,
+    dt: number
+): void {
     const pressureDifference = state.chargeAirPressure
         - state.intakePressure;
 
@@ -486,7 +512,10 @@ function updateCompressorBypass(state, dt) {
     );
 }
 
-function updateChargeAirAndCompressor(state, dt) {
+function updateChargeAirAndCompressor(
+    state: TurbochargerModuleState,
+    dt: number
+): number {
     initializeChargeAirIfNeeded(state);
 
     let chargeMass = Math.max(state.chargeAirMass, MIN_GAS_MASS);
@@ -874,7 +903,10 @@ function updateChargeAirAndCompressor(state, dt) {
 
 // Wastegate et dynamique d'arbre
 
-function updateWastegateControl(state, dt) {
+function updateWastegateControl(
+    state: TurbochargerModuleState,
+    dt: number
+): void {
     // La capsule de wastegate est référencée à la pression de suralimentation
     // disponible avant le papillon. Elle continue donc de protéger le turbo à
     // charge partielle, même si le collecteur reste en dépression.
@@ -961,7 +993,7 @@ function updateWastegateControl(state, dt) {
     );
 }
 
-function calculateShaftFrictionTorque(shaftOmega) {
+function calculateShaftFrictionTorque(shaftOmega: number): number {
     if (shaftOmega <= 0) {
         return 0;
     }
@@ -988,7 +1020,10 @@ function calculateShaftFrictionTorque(shaftOmega) {
  * Le retard d'un pas entre pression de charge et débit papillon est de 0.1 ms,
  * donc négligeable par rapport aux constantes de temps pneumatiques du système.
  */
-export function updateTurbocharger(state, dt) {
+export function updateTurbocharger(
+    state: TurbochargerModuleState,
+    dt: number
+): void {
     if (dt <= 0) {
         return;
     }

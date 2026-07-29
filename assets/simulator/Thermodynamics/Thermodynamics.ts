@@ -3,6 +3,7 @@
 // P et T sont reconstruits depuis U, la masse gazeuse et le volume instantané.
 
 import { CYLINDER_OFFSETS } from "../Geometry/Geometry.js";
+import type { ThermodynamicsModuleState } from "../engine/EngineStateTypes.js";
 import {
     R_AIR,
     CV_CYLINDER_GAS
@@ -17,6 +18,16 @@ import {
     LHV_FUEL,
     STOICHIOMETRIC_AFR
 } from "../Fuel/FuelConstants.js";
+import {
+    WIEBE_CA50_NORMALIZED_POSITION,
+    getCombustionDurationDegForRpm,
+    getWiebeFraction
+} from "../Combustion/Combustion.js";
+
+export {
+    getCombustionDurationDegForRpm,
+    getIgnitionAdvanceForTargetCA50
+} from "../Combustion/Combustion.js";
 
 // Constantes de combustion
 
@@ -25,62 +36,6 @@ import {
 // de 14.7 à 11.8 augmenterait artificiellement la puissance de 25 %, alors que
 // le carburant excédentaire sert surtout au refroidissement et à la protection.
 const RICH_MIXTURE_MAX_ADDITIONAL_HEAT_LOSS = 0.03;
-
-// Durée de la loi de Wiebe, légèrement réduite avec le régime.
-// EngineControl.js fournit state.ignitionTimingDeg avec une avance
-// réduite au démarreur et une avance nominale une fois le moteur autonome.
-// La durée en degrés diminue légèrement lorsque la turbulence de chambre et la
-// vitesse moyenne du piston augmentent. Cette correction maintient le centre de
-// combustion dans une zone efficace à haut régime sans imposer de couple cible.
-const LOW_SPEED_COMBUSTION_DURATION_DEG = 50;  // ° vilebrequin
-const HIGH_SPEED_COMBUSTION_DURATION_DEG = 44; // ° vilebrequin
-const COMBUSTION_DURATION_SHORTENING_START_RPM = 3000;
-const COMBUSTION_DURATION_SHORTENING_FULL_RPM = 6000;
-
-// Pour la loi de Wiebe utilisée ici (a=5, m=2), cette position normalisée
-// correspond exactement à 50 % de masse brûlée.
-const WIEBE_CA50_NORMALIZED_POSITION = Math.pow(
-    Math.log(2) / 5.0,
-    1 / 3
-);
-
-
-/**
- * Durée de combustion analytique partagée avec le contrôle d'allumage.
- * Cette fonction évite que le calculateur et le solveur thermique utilisent
- * deux lois différentes pour le même événement physique.
- */
-export function getCombustionDurationDegForRpm(rpm) {
-    const durationShorteningFraction = clamp(
-        (Math.max(rpm, 0) - COMBUSTION_DURATION_SHORTENING_START_RPM)
-        / Math.max(
-            COMBUSTION_DURATION_SHORTENING_FULL_RPM
-            - COMBUSTION_DURATION_SHORTENING_START_RPM,
-            1
-        ),
-        0,
-        1
-    );
-
-    return LOW_SPEED_COMBUSTION_DURATION_DEG
-        + (HIGH_SPEED_COMBUSTION_DURATION_DEG
-            - LOW_SPEED_COMBUSTION_DURATION_DEG)
-        * durationShorteningFraction;
-}
-
-/**
- * Avance maximale plaçant le CA50 à l'angle demandé avec la loi de Wiebe
- * utilisée. C'est une limite de phasage thermodynamique, pas une cartographie
- * de couple : une avance supérieure brûlerait la charge avant le point MBT visé.
- */
-export function getIgnitionAdvanceForTargetCA50(
-    rpm,
-    targetCA50DegAfterTdc = 9.5
-) {
-    return WIEBE_CA50_NORMALIZED_POSITION
-        * getCombustionDurationDegForRpm(rpm)
-        - targetCA50DegAfterTdc;
-}
 
 // Gardes numériques
 
@@ -94,40 +49,13 @@ const MIN_GAS_MASS = 1e-9;    // kg
 // initialisation ou d'une calibration extrême du coefficient thermique.
 const MAX_WALL_ENERGY_FRACTION_PER_STEP = 0.08;
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
-}
-
-// Loi de wiebe
-
-/**
- * Fraction cumulée de carburant brûlé à l'angle demandé.
- *
- * 0 signifie que la combustion n'a pas commencé.
- * 1 signifie que la combustion du cycle est terminée.
- */
-function getWiebeFraction(thetaLocal, ignitionStart, ignitionEnd, combustionDurationDeg) {
-    if (thetaLocal <= ignitionStart) return 0;
-    if (thetaLocal >= ignitionEnd) return 1;
-
-    const WIEBE_COMPLETENESS_FACTOR = 5.0;
-    const WIEBE_SHAPE_FACTOR = 2.0;
-
-    const normalizedAngle = (
-        thetaLocal - ignitionStart
-    ) / (
-        combustionDurationDeg * Math.PI / 180
-    );
-
-    return 1 - Math.exp(
-        -WIEBE_COMPLETENESS_FACTOR
-        * Math.pow(normalizedAngle, WIEBE_SHAPE_FACTOR + 1)
-    );
 }
 
 // Outils d'état thermodynamique
 
-function getTemperatureFromEnergy(mass, internalEnergy) {
+function getTemperatureFromEnergy(mass: number, internalEnergy: number): number {
     const safeMass = Math.max(mass, MIN_GAS_MASS);
 
     return clamp(
@@ -137,7 +65,11 @@ function getTemperatureFromEnergy(mass, internalEnergy) {
     );
 }
 
-function getPressureFromState(mass, temperature, volume) {
+function getPressureFromState(
+    mass: number,
+    temperature: number,
+    volume: number
+): number {
     return Math.max(
         mass * R_AIR * temperature / Math.max(volume, 1e-9),
         MIN_PRESSURE
@@ -148,7 +80,10 @@ function getPressureFromState(mass, temperature, volume) {
  * Initialise l'énergie interne si la simulation démarre directement dans une
  * phase fermée, ou si un état incomplet a été fourni par l'interface.
  */
-function initializeClosedCylinderIfNeeded(state, cylinderIndex) {
+function initializeClosedCylinderIfNeeded(
+    state: ThermodynamicsModuleState,
+    cylinderIndex: number
+): void {
     const previousControlMass = Math.max(
         Number.isFinite(state.cylinderGasMass[cylinderIndex])
             ? state.cylinderGasMass[cylinderIndex]
@@ -207,7 +142,14 @@ function initializeClosedCylinderIfNeeded(state, cylinderIndex) {
 
 // Bilan d'énergie d'un cylindre fermé
 
-function updateClosedCylinder(state, cylinderIndex, theta, dV, dt, omega) {
+function updateClosedCylinder(
+    state: ThermodynamicsModuleState,
+    cylinderIndex: number,
+    theta: number,
+    dV: number,
+    dt: number,
+    omega: number
+): void {
     initializeClosedCylinderIfNeeded(state, cylinderIndex);
 
     const V = Math.max(state.cylinderVolumes[cylinderIndex], 1e-9);
@@ -493,7 +435,10 @@ function updateClosedCylinder(state, cylinderIndex, theta, dV, dt, omega) {
 
 // Mise à jour thermodynamique complète
 
-export function updateThermodynamics(state, dt) {
+export function updateThermodynamics(
+    state: ThermodynamicsModuleState,
+    dt: number
+): void {
     if (dt <= 0) {
         return;
     }

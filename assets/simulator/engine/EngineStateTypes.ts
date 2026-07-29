@@ -463,3 +463,56 @@ export interface EngineStateData extends
     CycleRecorderState,
     DriverInputState
 {}
+
+// Contrats d'accès par sous-système.
+export type ThermodynamicsModuleState =
+    EngineKinematicsState
+    & CylinderState
+    & IntakeState
+    & FuelState
+    & EngineControlState
+    & ConservationState;
+
+export type IntakeManifoldModuleState =
+    EngineKinematicsState
+    & CylinderState
+    & IntakeState
+    & TurboState
+    & MechanicalState
+    & EngineControlState
+    & ConservationState
+    & DriverInputState;
+
+export type ExhaustManifoldModuleState =
+    EngineKinematicsState
+    & CylinderState
+    & ExhaustState
+    & TurboState
+    & MechanicalState
+    & EngineControlState
+    & ConservationState;
+
+export type TurbochargerModuleState =
+    IntakeState
+    & TurboState
+    & DynoState
+    & ConservationState
+    & DriverInputState;
+
+export type MechanicalLossesModuleState =
+    EngineKinematicsState
+    & CylinderState
+    & MechanicalState
+    & DriverInputState;
+
+export type CrankshaftModuleState =
+    EngineKinematicsState
+    & CylinderState
+    & MechanicalState;
+
+export type DynoModuleState =
+    EngineKinematicsState
+    & DynoState
+    & MechanicalState
+    & EngineControlState
+    & DriverInputState;

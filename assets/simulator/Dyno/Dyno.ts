@@ -3,6 +3,8 @@
 
 // Modes de fonctionnement du banc
 
+import type { DynoMode, DynoModuleState } from "../engine/EngineStateTypes.js";
+
 export const DYNO_MODES = Object.freeze({
     // Banc inertiel pur : le moteur accélère uniquement les inerties physiques
     // et virtuelles du système. Aucun frein électromagnétique n'est appliqué.
@@ -14,7 +16,7 @@ export const DYNO_MODES = Object.freeze({
     // Régulation de régime : un correcteur PI commande le frein pour maintenir
     // dynoTargetRpm. Ce mode est utile pour stabiliser un point de fonctionnement.
     RPM_HOLD: "rpmHold"
-});
+} satisfies Record<string, DynoMode>);
 
 // Rapports de transmission
 
@@ -183,11 +185,16 @@ const DRAG_AREA = 0.60; // m² = Cd * surface frontale
 
 // Outils
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function firstOrderResponse(currentValue, targetValue, dt, timeConstant) {
+function firstOrderResponse(
+    currentValue: number,
+    targetValue: number,
+    dt: number,
+    timeConstant: number
+): number {
     const alpha = 1 - Math.exp(-Math.max(dt, 0) / timeConstant);
     return currentValue + (targetValue - currentValue) * alpha;
 }
@@ -196,11 +203,14 @@ function firstOrderResponse(currentValue, targetValue, dt, timeConstant) {
  * Convertit un couple appliqué aux rouleaux en couple équivalent au vilebrequin
  * par égalité des puissances : T_moteur * omega_moteur = T_rouleau * omega_rouleau.
  */
-function rollerTorqueToCrankTorque(rollerTorque) {
+function rollerTorqueToCrankTorque(rollerTorque: number): number {
     return rollerTorque * ROLLER_TO_ENGINE_SPEED_RATIO;
 }
 
-function calculateDrivelineLossTorque(engineTorque, engineOmega) {
+function calculateDrivelineLossTorque(
+    engineTorque: number,
+    engineOmega: number
+): number {
     if (engineOmega <= 0.5) {
         return 0;
     }
@@ -210,7 +220,15 @@ function calculateDrivelineLossTorque(engineTorque, engineOmega) {
         + DRIVELINE_LOAD_LOSS_FACTOR * Math.abs(engineTorque);
 }
 
-function calculateRoadLoad(state, virtualVehicleSpeed) {
+interface RoadLoadResult {
+    force: number;
+    crankTorque: number;
+}
+
+function calculateRoadLoad(
+    state: DynoModuleState,
+    virtualVehicleSpeed: number
+): RoadLoadResult {
     if (!state.dynoRoadLoadEnabled || virtualVehicleSpeed <= 0.01) {
         return {
             force: 0,
@@ -241,7 +259,7 @@ function calculateRoadLoad(state, virtualVehicleSpeed) {
     };
 }
 
-function calculateCoastdownBrakeCommand(state) {
+function calculateCoastdownBrakeCommand(state: DynoModuleState): number {
     // Le frein de retour est optionnel et ne s'applique qu'au moteur démarré.
     if (!state.dynoCoastdownBrakeEnabled
         || !state.engineRunning
@@ -290,7 +308,10 @@ function calculateCoastdownBrakeCommand(state) {
     );
 }
 
-function calculateRpmHoldCommand(state, dt) {
+function calculateRpmHoldCommand(
+    state: DynoModuleState,
+    dt: number
+): number {
     const targetRpm = Math.max(state.dynoTargetRpm, 0);
     const error = state.rpm - targetRpm;
 
@@ -320,7 +341,10 @@ function calculateRpmHoldCommand(state, dt) {
     );
 }
 
-function getRequestedBrakeCommand(state, dt) {
+function getRequestedBrakeCommand(
+    state: DynoModuleState,
+    dt: number
+): number {
     switch (state.dynoMode) {
         case DYNO_MODES.BRAKED:
             state.dynoControllerIntegral = 0;
@@ -360,7 +384,7 @@ function getRequestedBrakeCommand(state, dt) {
  * Sortie principale :
  *   state.rpm, obtenu par I * domega/dt = somme des couples.
  */
-export function updateDyno(state, dt) {
+export function updateDyno(state: DynoModuleState, dt: number): void {
     if (dt <= 0) {
         return;
     }

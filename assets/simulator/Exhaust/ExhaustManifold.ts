@@ -2,6 +2,7 @@
 // bilans masse/énergie et débits séparés vers turbine et wastegate.
 
 import { CYLINDER_OFFSETS } from "../Geometry/Geometry.js";
+import type { ExhaustManifoldModuleState } from "../engine/EngineStateTypes.js";
 import {
     R_AIR,
     GAMMA_CYLINDER_GAS,
@@ -96,17 +97,22 @@ const MIN_GAS_MASS = 1e-9; // kg
 const MAX_SOURCE_MASS_FRACTION_PER_STEP = 0.25;
 const MAX_CYLINDER_WALL_ENERGY_FRACTION_PER_STEP = 0.08;
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function firstOrderResponse(currentValue, targetValue, dt, timeConstant) {
+function firstOrderResponse(
+    currentValue: number,
+    targetValue: number,
+    dt: number,
+    timeConstant: number
+): number {
     const safeTimeConstant = Math.max(timeConstant, 1e-6);
     const alpha = 1 - Math.exp(-Math.max(dt, 0) / safeTimeConstant);
     return currentValue + (targetValue - currentValue) * alpha;
 }
 
-function getTemperatureFromMassAndEnergy(mass, energy) {
+function getTemperatureFromMassAndEnergy(mass: number, energy: number): number {
     const safeMass = Math.max(mass, MIN_GAS_MASS);
 
     return clamp(
@@ -116,7 +122,11 @@ function getTemperatureFromMassAndEnergy(mass, energy) {
     );
 }
 
-function getPressureFromMassTemperatureVolume(mass, temperature, volume) {
+function getPressureFromMassTemperatureVolume(
+    mass: number,
+    temperature: number,
+    volume: number
+): number {
     return Math.max(
         mass * R_AIR * temperature / Math.max(volume, 1e-9),
         MIN_PRESSURE
@@ -125,7 +135,7 @@ function getPressureFromMassTemperatureVolume(mass, temperature, volume) {
 
 // Initialisation
 
-function initializeExhaustScrollsIfNeeded(state) {
+function initializeExhaustScrollsIfNeeded(state: ExhaustManifoldModuleState): void {
     for (let scroll = 0; scroll < EXHAUST_SCROLL_COUNT; scroll++) {
         const previousMass = Number.isFinite(
             state.exhaustManifoldMasses[scroll]
@@ -206,7 +216,10 @@ function initializeExhaustScrollsIfNeeded(state) {
     }
 }
 
-function initializeCylinderIfNeeded(state, cylinderIndex) {
+function initializeCylinderIfNeeded(
+    state: ExhaustManifoldModuleState,
+    cylinderIndex: number
+): void {
     const previousControlMass = Math.max(
         Number.isFinite(state.cylinderGasMass[cylinderIndex])
             ? state.cylinderGasMass[cylinderIndex]
@@ -263,7 +276,10 @@ function initializeCylinderIfNeeded(state, cylinderIndex) {
  * fusionnée dans la masse totale des produits afin que le bilan de vidange
  * conserve bien toute la masse gazeuse.
  */
-function mergeBurnedFuelIntoExhaustGas(state, cylinderIndex) {
+function mergeBurnedFuelIntoExhaustGas(
+    state: ExhaustManifoldModuleState,
+    cylinderIndex: number
+): void {
     const burnedFuelMass = Math.max(
         state.burnedFuelMassInCylinder[cylinderIndex],
         0
@@ -275,7 +291,11 @@ function mergeBurnedFuelIntoExhaustGas(state, cylinderIndex) {
 
 // Soupape d'échappement d'un cylindre
 
-function updateCylinderExhaustValve(state, cylinderIndex, dt) {
+function updateCylinderExhaustValve(
+    state: ExhaustManifoldModuleState,
+    cylinderIndex: number,
+    dt: number
+): number {
     const thetaLocal = (
         state.crankAngle + CYLINDER_OFFSETS[cylinderIndex]
     ) % (4 * Math.PI);
@@ -526,15 +546,24 @@ function updateCylinderExhaustValve(state, cylinderIndex, dt) {
  * puis ajoutée à la capacité thermique métallique. La conservation de l'énergie
  * est donc respectée au niveau de ce sous-modèle.
  */
+interface ScrollThermalResult {
+    gasEnergy: number;
+    wallTemperature: number;
+    sensorTemperature: number;
+    gasWallConductance: number;
+    gasToWallEnergy: number;
+    wallAmbientEnergy: number;
+}
+
 function updateScrollThermalModel(
-    state,
-    scrollIndex,
-    gasMass,
-    gasEnergy,
-    gasTemperature,
-    throughMassFlow,
-    dt
-) {
+    state: ExhaustManifoldModuleState,
+    scrollIndex: number,
+    gasMass: number,
+    gasEnergy: number,
+    gasTemperature: number,
+    throughMassFlow: number,
+    dt: number
+): ScrollThermalResult {
     let wallEnergy = Math.max(
         state.exhaustManifoldWallEnergies[scrollIndex],
         EXHAUST_WALL_THERMAL_CAPACITY * MIN_WALL_TEMPERATURE
@@ -645,7 +674,12 @@ function updateScrollThermalModel(
     };
 }
 
-function updateScrollOutlet(state, scrollIndex, scrollInflowMassFlow, dt) {
+function updateScrollOutlet(
+    state: ExhaustManifoldModuleState,
+    scrollIndex: number,
+    scrollInflowMassFlow: number,
+    dt: number
+): void {
     let mass = Math.max(
         state.exhaustManifoldMasses[scrollIndex],
         MIN_GAS_MASS
@@ -833,7 +867,10 @@ function updateScrollOutlet(state, scrollIndex, scrollInflowMassFlow, dt) {
 
 // Mise à jour complète
 
-export function updateExhaustManifold(state, dt) {
+export function updateExhaustManifold(
+    state: ExhaustManifoldModuleState,
+    dt: number
+): void {
     if (dt <= 0) {
         return;
     }

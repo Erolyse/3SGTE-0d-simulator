@@ -2,6 +2,11 @@
 // Le pompage provient des pressions cylindre ; ce module ne calcule que les
 // frottements, les accessoires et la logique de coupure d'injection.
 
+import type {
+    CrankshaftModuleState,
+    MechanicalLossesModuleState
+} from "../engine/EngineStateTypes.js";
+
 import {
     STROKE,
     SWEPT_VOLUME,
@@ -79,11 +84,11 @@ const FUEL_CUT_RPM_OFF = 1200;       // réactivation sous 1200 tr/min
 
 // Outils
 
-function clamp(value, minimum, maximum) {
+function clamp(value: number, minimum: number, maximum: number): number {
     return Math.max(minimum, Math.min(maximum, value));
 }
 
-function pressureToFourStrokeTorque(meanEffectivePressure) {
+function pressureToFourStrokeTorque(meanEffectivePressure: number): number {
     return meanEffectivePressure
         * TOTAL_DISPLACEMENT
         / FOUR_STROKE_CYCLE_ANGLE;
@@ -96,7 +101,7 @@ function pressureToFourStrokeTorque(meanEffectivePressure) {
  *
  * Le piston parcourt deux courses par tour de vilebrequin.
  */
-function getMeanPistonSpeed(rpm) {
+function getMeanPistonSpeed(rpm: number): number {
     return 2 * STROKE * Math.max(rpm, 0) / 60;
 }
 
@@ -110,7 +115,7 @@ function getMeanPistonSpeed(rpm) {
  * pulsé et physiquement injustifié. Le modèle retient donc le pic du dernier
  * cycle complet puis moyenne les quatre cylindres.
  */
-function updateCyclePeakPressures(state) {
+function updateCyclePeakPressures(state: CrankshaftModuleState): void {
     for (let i = 0; i < CYLINDER_COUNT; i++) {
         const localAngle = (
             state.crankAngle + CYLINDER_OFFSETS[i]
@@ -142,7 +147,9 @@ function updateCyclePeakPressures(state) {
     }
 }
 
-function getAverageCyclePeakGaugePressure(state) {
+function getAverageCyclePeakGaugePressure(
+    state: CrankshaftModuleState
+): number {
     let pressureSum = 0;
 
     for (let i = 0; i < CYLINDER_COUNT; i++) {
@@ -171,7 +178,9 @@ function getAverageCyclePeakGaugePressure(state) {
  * est coupée, le couple négatif vient naturellement du pompage et des pertes
  * mécaniques calculées ailleurs.
  */
-export function updateOverrunFuelCut(state) {
+export function updateOverrunFuelCut(
+    state: MechanicalLossesModuleState
+): void {
     const throttle = clamp(state.throttle, 0, 1);
 
     if (state.fuelCutActive) {
@@ -195,12 +204,30 @@ export function updateOverrunFuelCut(state) {
 
 // Calcul des pertes mécaniques
 
+export interface MechanicalLossBreakdown {
+    meanPistonSpeed: number;
+    averagePeakGaugePressure: number;
+    baseFMEP: number;
+    linearSpeedFMEP: number;
+    quadraticSpeedFMEP: number;
+    loadFMEP: number;
+    totalFMEP: number;
+    baseFrictionTorque: number;
+    speedFrictionTorque: number;
+    loadFrictionTorque: number;
+    frictionTorque: number;
+    accessoryTorque: number;
+    totalMechanicalLossTorque: number;
+}
+
 /**
  * Calcule les pertes mécaniques moyennes appliquées au vilebrequin.
  *
  * @returns {object} Décomposition complète des pertes pour la dynamique et les graphiques
  */
-export function calculateMechanicalLosses(state) {
+export function calculateMechanicalLosses(
+    state: CrankshaftModuleState
+): MechanicalLossBreakdown {
     updateCyclePeakPressures(state);
 
     const omega = Math.max(

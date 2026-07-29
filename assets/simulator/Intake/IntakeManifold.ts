@@ -7,6 +7,7 @@
 // imposées pendant l'admission. Elles résultent des bilans de masse et d'énergie.
 
 import { CYLINDER_OFFSETS } from "../Geometry/Geometry.js";
+import type { IntakeManifoldModuleState } from "../engine/EngineStateTypes.js";
 import {
     R_AIR,
     CV_AIR,
@@ -83,7 +84,15 @@ const MAX_SOURCE_MASS_FRACTION_PER_STEP = 0.25;
 
 // Aire effective du papillon
 
-function getThrottleEffectiveArea(throttle, idleAirControlCommand) {
+interface ThrottleEffectiveArea {
+    totalArea: number;
+    idleBypassArea: number;
+}
+
+function getThrottleEffectiveArea(
+    throttle: number,
+    idleAirControlCommand: number
+): ThrottleEffectiveArea {
     const clampedThrottle = Math.max(0, Math.min(1, throttle));
     const clampedIdleCommand = Math.max(
         0,
@@ -108,7 +117,7 @@ function getThrottleEffectiveArea(throttle, idleAirControlCommand) {
 
 // Initialisation des volumes 0D
 
-function initializeManifoldIfNeeded(state) {
+function initializeManifoldIfNeeded(state: IntakeManifoldModuleState): void {
     const initialTemperature = Math.max(
         state.intakeTemperature,
         MIN_TEMPERATURE
@@ -139,7 +148,10 @@ function initializeManifoldIfNeeded(state) {
  * La masse d'air frais est remise à zéro puis intégrée à partir
  * du débit réel traversant les soupapes.
  */
-function initializeCylinderForIntake(state, cylinderIndex) {
+function initializeCylinderForIntake(
+    state: IntakeManifoldModuleState,
+    cylinderIndex: number
+): void {
     const previousControlMass = Math.max(
         Number.isFinite(state.cylinderGasMass[cylinderIndex])
             ? state.cylinderGasMass[cylinderIndex]
@@ -205,10 +217,10 @@ function initializeCylinderForIntake(state, cylinderIndex) {
 // Outils d'état thermodynamique
 
 function getTemperatureFromMassAndEnergy(
-    mass,
-    internalEnergy,
-    specificHeatAtConstantVolume = CV_AIR
-) {
+    mass: number,
+    internalEnergy: number,
+    specificHeatAtConstantVolume: number = CV_AIR
+): number {
     if (mass <= MIN_GAS_MASS) {
         return MIN_TEMPERATURE;
     }
@@ -222,7 +234,11 @@ function getTemperatureFromMassAndEnergy(
     );
 }
 
-function getPressureFromMassTemperatureVolume(mass, temperature, volume) {
+function getPressureFromMassTemperatureVolume(
+    mass: number,
+    temperature: number,
+    volume: number
+): number {
     return Math.max(
         MIN_CYLINDER_PRESSURE,
         mass * R_AIR * temperature / Math.max(volume, 1e-9)
@@ -243,7 +259,17 @@ function getPressureFromMassTemperatureVolume(mass, temperature, volume) {
  *
  * @returns {object} Masses transférées et débit signé pour les diagnostics
  */
-function updateCylinderIntakeValve(state, cylinderIndex, dt) {
+interface IntakeValveTransferResult {
+    signedMassFlow: number;
+    freshAirIntoCylinder: number;
+    reversionMassToManifold: number;
+}
+
+function updateCylinderIntakeValve(
+    state: IntakeManifoldModuleState,
+    cylinderIndex: number,
+    dt: number
+): IntakeValveTransferResult {
     const thetaLocal = (
         state.crankAngle + CYLINDER_OFFSETS[cylinderIndex]
     ) % (4 * Math.PI);
@@ -488,7 +514,10 @@ function updateCylinderIntakeValve(state, cylinderIndex, dt) {
  * @param {object} state État global du moteur
  * @param {number} dt Pas de temps en secondes
  */
-export function updateIntakeManifold(state, dt) {
+export function updateIntakeManifold(
+    state: IntakeManifoldModuleState,
+    dt: number
+): void {
     if (dt <= 0) {
         return;
     }
