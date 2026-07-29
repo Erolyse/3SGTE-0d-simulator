@@ -3,20 +3,20 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-
     "lib": ["ES2022", "DOM"],
-
     "strict": true,
-
     "allowJs": true,
     "checkJs": false,
-
     "noEmit": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-
   "include": [
-    "assets/**/*"
+    "assets/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    ".build",
+    "node_modules"
   ]
 }
