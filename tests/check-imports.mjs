@@ -23,7 +23,7 @@ function collectFiles(directory, output = []) {
         const path = resolve(directory, entry.name);
         if (entry.isDirectory()) {
             collectFiles(path, output);
-        } else if (entry.isFile() && [".js", ".mjs"].includes(extname(entry.name))) {
+        } else if (entry.isFile() && [".js", ".mjs", ".ts"].includes(extname(entry.name))) {
             output.push(path);
         }
     }
@@ -47,13 +47,19 @@ function extractSpecifiers(source) {
 
 function resolveRelativeImport(importer, specifier) {
     const direct = resolve(dirname(importer), specifier);
+    const sourceTypeScriptCandidate = specifier.endsWith(".js")
+        ? resolve(dirname(importer), specifier.slice(0, -3) + ".ts")
+        : null;
     const candidates = [
         direct,
+        sourceTypeScriptCandidate,
         `${direct}.js`,
         `${direct}.mjs`,
+        `${direct}.ts`,
         resolve(direct, "index.js"),
-        resolve(direct, "index.mjs")
-    ];
+        resolve(direct, "index.mjs"),
+        resolve(direct, "index.ts")
+    ].filter(Boolean);
     return candidates.find(existsSync) ?? null;
 }
 

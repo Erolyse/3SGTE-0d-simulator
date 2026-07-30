@@ -1,6 +1,7 @@
 name: Tests simulateur 3S-GTE
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -10,6 +11,7 @@ on:
 
 jobs:
   test:
+    name: Suite de vérification
     runs-on: ubuntu-latest
 
     steps:
@@ -20,6 +22,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+
+      - name: Installer les dépendances
+        run: npm ci
 
       - name: Lancer les tests
         run: npm test

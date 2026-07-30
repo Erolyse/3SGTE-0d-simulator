@@ -1,17 +1,23 @@
 {
   "name": "3sgte-0d-simulator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Toyota 3S-GTE ST205 inspired 0D engine simulator - standalone verification scripts",
+  "description": "Toyota 3S-GTE ST205 inspired 0D engine simulator - TypeScript numerical core and standalone verification suite",
   "scripts": {
-    "test": "node tests/run-all.mjs",
-    "test:unit": "node tests/submodules.test.mjs",
-    "test:transients": "node tests/transients.test.mjs",
-    "test:syntax": "node tests/check-syntax.mjs",
-    "test:imports": "node tests/check-imports.mjs"
+    "typecheck": "tsc -p tsconfig.json",
+    "typecheck:watch": "tsc -p tsconfig.json --watch",
+    "build": "node -e \"require('node:fs').rmSync('.build',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "test": "npm run typecheck && npm run build && node .build/tests/run-all.mjs",
+    "test:unit": "npm run build && node .build/tests/submodules.test.mjs",
+    "test:transients": "npm run build && node .build/tests/transients.test.mjs",
+    "test:syntax": "npm run build && node .build/tests/check-syntax.mjs",
+    "test:imports": "npm run build && node .build/tests/check-imports.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }
