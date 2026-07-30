@@ -85,53 +85,6 @@ Les artefacts JavaScript destinés au navigateur sont générés dans :
 
 Le dossier `.build/` est volontairement exclu de Git : le dépôt versionne les sources, pas les artefacts générés.
 
-### Intégration dans le portfolio Symfony
-
-Dans mon portfolio, le dépôt du simulateur est placé sous l’arborescence Symfony suivante :
-
-```text
-portfolio/
-└── assets/
-    ├── app.js
-    └── numericalTwin/
-        ├── package.json
-        ├── tsconfig.json
-        ├── assets/
-        │   ├── main.js
-        │   ├── analysis.js
-        │   └── simulator/        # sources TypeScript
-        ├── tests/
-        └── docs/
-```
-
-Un simple clonage/copie du dépôt sous `assets/numericalTwin/` ne suffit donc plus pour un déploiement propre : les modules TypeScript doivent être compilés avant `asset-map:compile`.
-
-Le principe de déploiement utilisé est :
-
-```bash
-cd assets/numericalTwin
-npm ci
-npm run build
-
-# Dans l’environnement de build uniquement : place les JS compilés
-# à côté des sources afin qu’AssetMapper puisse résoudre les imports .js.
-cp -R .build/assets/. assets/
-
-cd ../..
-APP_ENV=prod php bin/console asset-map:compile
-```
-
-Cette copie des fichiers générés est une étape de build/deployment : les `.js` compilés présents sous `assets/simulator/` ne sont pas versionnés dans le dépôt.
-
-Les entrypoints Symfony restent donc :
-
-```text
-assets/numericalTwin/assets/main.js
-assets/numericalTwin/assets/analysis.js
-```
-
-mais leurs imports vers `assets/numericalTwin/assets/simulator/**/*.js` sont satisfaits par la compilation TypeScript effectuée juste avant la compilation AssetMapper.
-
 ---
 
 ## Objectif
