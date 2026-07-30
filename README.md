@@ -59,6 +59,81 @@ Ce dépôt a donc principalement pour objectif de rendre accessibles :
 
 ---
 
+## TypeScript, compilation et intégration Symfony
+
+Le noyau de simulation est écrit en TypeScript. Les navigateurs et Symfony AssetMapper n’exécutent pas directement ces fichiers `.ts` : une compilation est donc nécessaire avant déploiement.
+
+Installation et vérification :
+
+```bash
+npm ci
+npm run typecheck
+npm test
+```
+
+Compilation seule :
+
+```bash
+npm run build
+```
+
+Les artefacts JavaScript destinés au navigateur sont générés dans :
+
+```text
+.build/assets/
+```
+
+Le dossier `.build/` est volontairement exclu de Git : le dépôt versionne les sources, pas les artefacts générés.
+
+### Intégration dans le portfolio Symfony
+
+Dans mon portfolio, le dépôt du simulateur est placé sous l’arborescence Symfony suivante :
+
+```text
+portfolio/
+└── assets/
+    ├── app.js
+    └── numericalTwin/
+        ├── package.json
+        ├── tsconfig.json
+        ├── assets/
+        │   ├── main.js
+        │   ├── analysis.js
+        │   └── simulator/        # sources TypeScript
+        ├── tests/
+        └── docs/
+```
+
+Un simple clonage/copie du dépôt sous `assets/numericalTwin/` ne suffit donc plus pour un déploiement propre : les modules TypeScript doivent être compilés avant `asset-map:compile`.
+
+Le principe de déploiement utilisé est :
+
+```bash
+cd assets/numericalTwin
+npm ci
+npm run build
+
+# Dans l’environnement de build uniquement : place les JS compilés
+# à côté des sources afin qu’AssetMapper puisse résoudre les imports .js.
+cp -R .build/assets/. assets/
+
+cd ../..
+APP_ENV=prod php bin/console asset-map:compile
+```
+
+Cette copie des fichiers générés est une étape de build/deployment : les `.js` compilés présents sous `assets/simulator/` ne sont pas versionnés dans le dépôt.
+
+Les entrypoints Symfony restent donc :
+
+```text
+assets/numericalTwin/assets/main.js
+assets/numericalTwin/assets/analysis.js
+```
+
+mais leurs imports vers `assets/numericalTwin/assets/simulator/**/*.js` sont satisfaits par la compilation TypeScript effectuée juste avant la compilation AssetMapper.
+
+---
+
 ## Objectif
 
 Le projet ne lit pas le couple dans une table `régime → couple`.
@@ -365,52 +440,55 @@ Les graphiques affichent des données calculées ou acquises. Ils ne sont pas d�
 
 ## Technologies
 
-- JavaScript moderne avec modules ES ;
+- TypeScript 7 en mode strict pour le noyau de simulation ;
+- JavaScript ES modules pour les points d’entrée navigateur (`main.js`, `analysis.js`) ;
 - Three.js ;
 - Chart.js ;
 - WebGL ;
-- scripts de test exécutables hors interface.
+- Node.js 20+ pour le typecheck, la compilation et la suite de vérification ;
+- GitHub Actions pour l’intégration continue.
 
 ---
 
 ## Organisation
 
 ```text
-assets/simulator/
-├── engine/
-├── Geometry/
-├── Numerics/
-├── Physics/
-├── Intake/
-├── Exhaust/
-├── Valvetrain/
-├── Thermodynamics/
-├── Crankshaft/
-├── Turbo/
-├── Fuel/
-├── EngineControl/
-├── Dyno/
-├── Telemetry/
-├── Cycle/
-├── Diagnostics/
-├── Analysis/
-├── Three/
-├── main.js
-└── analysis.js
+assets/
+├── main.js                 # point d’entrée navigateur du viewer
+├── analysis.js             # point d’entrée navigateur de l’analyse
+├── simulator/
+│   ├── engine/             # état moteur et orchestration
+│   ├── Geometry/
+│   ├── Numerics/
+│   ├── Physics/
+│   ├── Intake/
+│   ├── Exhaust/
+│   ├── Valvetrain/
+│   ├── Thermodynamics/
+│   ├── Crankshaft/
+│   ├── Turbo/
+│   ├── Fuel/
+│   ├── EngineControl/
+│   ├── Dyno/
+│   ├── Telemetry/
+│   ├── Cycle/
+│   ├── Diagnostics/
+│   ├── Analysis/
+│   └── Three/
+└── types/                  # déclarations TypeScript locales
 
 tests/
 ├── check-imports.mjs
 ├── check-syntax.mjs
 ├── run-all.mjs
 ├── submodules.test.mjs
-├── transients.test.mjs
+└── transients.test.mjs
 
 docs/
 ├── external-comparison.md
 ├── technical-overview.md
 ├── PARAMETERS.csv
-├── PARAMETERS.json
-
+└── PARAMETERS.json
 ```
 
 ---
@@ -437,14 +515,13 @@ Une calibration satisfaisante ne prouve pas qu’un jeu de paramètres est uniqu
 
 ## Feuille de route
 
-- documenter les sources constructeur ;
+- documenter davantage les sources constructeur ;
 - comparer à davantage de mesures externes ;
-- versionner les jeux de référence ;
-- automatiser les tests de non-régression en CI ;
+- compléter le versionnement des jeux de référence ;
 - compléter les études de sensibilité ;
 - déplacer la physique dans un Web Worker ;
-- renforcer les tests unitaires ;
-- envisager TypeScript ;
+- réduire progressivement les frontières encore typées dynamiquement dans les outils d’analyse ;
+- renforcer les benchmarks analytiques et les tests numériques ;
 - améliorer le viewer mécanique et les flux.
 
 ---

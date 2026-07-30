@@ -1109,16 +1109,13 @@ Il ne doit pas être utilisé pour :
 ### Logicielle
 
 - Web Worker ;
-- TypeScript ;
 - tests unitaires ;
-- CI ;
 - version des sessions ;
 - gestion d’erreurs ;
 - unités centralisées.
 
 ### Visualisation
 
-- soupapes ;
 - flux ;
 - combustion ;
 - température échappement ;

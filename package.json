@@ -1,9 +1,9 @@
 {
   "name": "3sgte-0d-simulator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Toyota 3S-GTE ST205 inspired 0D engine simulator - standalone verification scripts",
+  "description": "Toyota 3S-GTE ST205 inspired 0D engine simulator - TypeScript numerical core and standalone verification suite",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "typecheck:watch": "tsc -p tsconfig.json --watch",
@@ -18,6 +18,6 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^7.0.2"
   }
 }
