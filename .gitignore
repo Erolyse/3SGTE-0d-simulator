@@ -8,3 +8,5 @@ Thumbs.db
 *.log
 coverage/
 .build
+assets/simulator/**/*.js
+assets/simulator/**/*.js.map
