@@ -14,9 +14,7 @@ Projet personnel conçu, intégré et vérifié par **Ludovic Steyer**.
 
 ## Aperçu
 
-
-
-![Viewer moteur](docs/images/viewer.png)
+![Alt Text](docs/images/demo.gif)
 
 ![Analyse et validation](docs/images/analysis.png)
 
